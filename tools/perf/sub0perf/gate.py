@@ -9,7 +9,7 @@ from .baseline import baseline_data, make_record
 from . import deferral, levels, plan as planning, power, speed
 from .common import REFERENCE_MARK, group_of, read_json, tooling_script
 from .confirm import confirm_regressions, inconclusive_in, retry_inconclusive
-from .gitstate import (ZERO_SHA_CHARS, accepted_since, changed_paths_between, documentation_only, git, git_head, log_event,
+from .gitstate import (ZERO_SHA_CHARS, accepted_since, changed_paths_between, documentation_only, foreign_worktree, git, git_head, log_event,
                        parse_push_refs, perf_dir, pushed_refs, push_problems, reference_binary, reference_record, save_record, tree_clean)
 from .judge import evaluate_with, names_with
 from .lock import LockTimeout, PerfLock
@@ -241,6 +241,19 @@ def preview_targets(args, repo, d, config, head):
     return previews
 
 
+def target_problem(repo, target):
+    """Why this configured target cannot be measured from `repo`, with the fix, or None. The hooks are shared by every worktree of
+    the repository, but a build directory belongs to one."""
+    build_dir = Path(target.get("build_dir", ""))
+    if not build_dir.is_dir():
+        return f"the build directory {build_dir} is missing; reconfigure it (cmake -S . -B {build_dir})"
+    other = foreign_worktree(repo, build_dir)
+    if other:
+        return (f"the gate is configured for {build_dir}, in another worktree ({other}), so it would measure that "
+                f"code, not this push; push from {other}, or reconfigure the build directory there (SUB0MATH_PERF_SKIP=<reason> bypasses)")
+    return None
+
+
 def run_gate(args, repo, d, config_path, head, clean):
     config = read_json(config_path)
     upstream = git(repo, "rev-parse", "@{upstream}")
@@ -251,8 +264,15 @@ def run_gate(args, repo, d, config_path, head, clean):
         print(line)
     for target, t in config.get("targets", {}).items():
         print(f"sub0perf: pre-push gate for {target} at {head[:9]}{'' if clean else ' (working tree has uncommitted changes)'}")
+        problem = target_problem(repo, t)
+        if problem:
+            print(f"sub0perf: {problem}; push blocked")
+            blocked.append(target)
+            continue
         command = ["cmake", "--build", t["build_dir"], "--target", target] + (["--config", t["config"]] if t.get("config") else [])
-        build = subprocess.run(command, env={**os.environ, "SUB0MATH_PERF_SKIP": "1"})
+        # A hook runs with GIT_DIR set; a configure that inherits it can write core.bare and core.hooksPath into the shared config.
+        env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")}
+        build = subprocess.run(command, env={**env, "SUB0MATH_PERF_SKIP": "1"})
         if build.returncode != 0:
             print(f"sub0perf: building {target} failed; push blocked")
             blocked.append(target)

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from .. import gitstate
+from ..common import read_json
 from .. import hooks as hk
 from .helpers import RepoTestCase, git_run
 
@@ -188,3 +189,91 @@ class TrackedHooksTest(RepoTestCase):
         self.assertIn(hk.HOOK_MARK, (self.plain_hooks_dir() / "pre-push").read_text(encoding="utf-8"))
 
 
+
+
+@unittest.skipUnless(shutil.which("sh"), "needs a POSIX sh")
+class LinkedWorktreeTest(RepoTestCase):
+    """The hooks and .git/sub0perf are shared by every worktree: only the main checkout writes them."""
+
+    def setUp(self):
+        super().setUp()
+        (self.repo / "a.txt").write_text("a", encoding="utf-8")
+        git_run(self.repo, "add", "a.txt")
+        git_run(self.repo, "commit", "-q", "-m", "one")
+        self.linked = Path(self.tmp.name) / "linked"
+        git_run(self.repo, "worktree", "add", "-q", str(self.linked), "-b", "side")
+
+    def args(self, repo, build_dir, **extra):
+        values = {"repo": str(repo), "build_dir": str(build_dir), "target": "tgt", "exe": str(build_dir / "tgt"),
+                  "baseline": str(repo / "b.json"), "config": ""}
+        values.update(extra)
+        return type("A", (), values)
+
+    def install(self, args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            hk.install_hooks_command(args)
+        return out.getvalue()
+
+    def test_a_linked_worktree_is_recognised(self):
+        self.assertTrue(gitstate.is_linked_worktree(self.linked))
+        self.assertFalse(gitstate.is_linked_worktree(self.repo))
+
+    def test_install_from_a_linked_worktree_refuses_in_one_line_and_writes_nothing(self):
+        text = self.install(self.args(self.linked, self.linked / "build"))
+        self.assertEqual(len(text.strip().splitlines()), 1)
+        self.assertIn("main checkout", text)
+        self.assertFalse((gitstate.perf_dir(self.repo) / "config.json").exists())
+        self.assertFalse((Path(gitstate.git(self.repo, "rev-parse", "--git-path", "hooks")) / "pre-push").exists())
+        self.assertIsNone(gitstate.git(self.repo, "config", "--get", "core.hooksPath"))
+
+    def test_an_absolute_hooks_path_into_the_main_checkout_is_tracked_from_a_linked_worktree(self):
+        (self.repo / ".githooks").mkdir()
+        git_run(self.repo, "config", "core.hooksPath", str(self.repo / ".githooks"))
+        self.assertTrue(hk.is_tracked_dir(self.repo))
+        self.assertTrue(hk.is_tracked_dir(self.linked))
+
+    def test_the_default_hooks_directory_is_not_tracked(self):
+        self.assertFalse(hk.is_tracked_dir(self.repo))
+        self.assertFalse(hk.is_tracked_dir(self.linked))
+
+    def test_a_second_build_directory_leaves_the_gate_alone_while_the_first_exists(self):
+        first, second = self.repo / "build", self.repo / "build-local"
+        first.mkdir()
+        second.mkdir()
+        self.install(self.args(self.repo, first))
+        text = self.install(self.args(self.repo, second, keep_existing=True))
+        self.assertIn(str(first), text)
+        config = read_json(gitstate.perf_dir(self.repo) / "config.json")
+        self.assertEqual(config["targets"]["tgt"]["build_dir"], str(first.resolve()))
+
+    def test_taking_over_and_a_vanished_first_directory_repoint_the_gate(self):
+        first, second = self.repo / "build", self.repo / "build-local"
+        first.mkdir()
+        second.mkdir()
+        self.install(self.args(self.repo, first))
+        self.install(self.args(self.repo, second))  # no keep_existing: ON, or a hand-run install-hooks
+        config = read_json(gitstate.perf_dir(self.repo) / "config.json")
+        self.assertEqual(config["targets"]["tgt"]["build_dir"], str(second.resolve()))
+        first.rmdir()
+        third = self.repo / "build-3"
+        third.mkdir()
+        second.rmdir()
+        self.install(self.args(self.repo, third, keep_existing=True))
+        config = read_json(gitstate.perf_dir(self.repo) / "config.json")
+        self.assertEqual(config["targets"]["tgt"]["build_dir"], str(third.resolve()))
+
+    def test_the_gate_names_the_fix_for_a_missing_or_foreign_build_directory(self):
+        from .. import gate
+        missing = gate.target_problem(self.repo, {"build_dir": str(self.repo / "gone")})
+        self.assertIn("reconfigure", missing)
+        (self.linked / "build").mkdir()
+        foreign = gate.target_problem(self.repo, {"build_dir": str(self.linked / "build")})
+        self.assertIn("another worktree", foreign)
+        (self.repo / "build").mkdir()
+        self.assertIsNone(gate.target_problem(self.repo, {"build_dir": str(self.repo / "build")}))
+        self.assertIn("another worktree", gate.target_problem(self.linked, {"build_dir": str(self.repo / "build")}))
+
+    def test_temporary_repositories_do_not_inherit_the_hooks_git_dir(self):
+        for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+            self.assertNotIn(name, os.environ)

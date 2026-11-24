@@ -33,6 +33,35 @@ def perf_dir(repo):
     return base / "sub0perf"
 
 
+def _resolved(repo, *flags):
+    found = git(repo, "rev-parse", *flags)
+    return Path(found).resolve() if found else None
+
+
+def is_linked_worktree(repo):
+    """True in a linked worktree (`git worktree add`): its git directory differs from the repository's common one."""
+    git_dir, common = _resolved(repo, "--absolute-git-dir"), _resolved(repo, "--path-format=absolute", "--git-common-dir")
+    return bool(git_dir and common and git_dir != common)
+
+
+def worktree_roots(repo):
+    """The top directories of every worktree of the repository (the main one first); empty when git cannot say."""
+    listing = git(repo, "worktree", "list", "--porcelain") or ""
+    return [Path(line[len("worktree "):]).resolve() for line in listing.splitlines() if line.startswith("worktree ")]
+
+
+def inside(path, root):
+    path, root = Path(path).resolve(), Path(root).resolve()
+    return path == root or root in path.parents
+
+
+def foreign_worktree(repo, path):
+    """The root of another worktree of this repository that owns `path` (the deepest worktree containing it), or None."""
+    top = _resolved(repo, "--show-toplevel")
+    owners = sorted((r for r in worktree_roots(repo) if inside(path, r)), key=lambda r: len(r.parts), reverse=True)
+    return owners[0] if owners and owners[0] != top else None
+
+
 def log_event(repo, event):
     d = perf_dir(repo)
     if d is None:

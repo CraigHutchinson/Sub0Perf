@@ -414,12 +414,14 @@ class GateRecordTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as d:
             config = Path(d) / "config.json"
-            config.write_text(json.dumps({"targets": {"T": {"build_dir": "b", "exe": "e", "baseline": "b.json"}}}), encoding="utf-8")
+            (Path(d) / "b").mkdir()
+            config.write_text(json.dumps({"targets": {"T": {"build_dir": str(Path(d) / "b"), "exe": "e", "baseline": "b.json"}}}), encoding="utf-8")
             with mock.patch.dict(os.environ, {power.FAKE_VAR: "ac"}):
                 now = power.power_state()
             args = types.SimpleNamespace(power_state=now, power_policy=power.policy(config={}), level="quick", budget_seconds=90.0,
                                          epochs=0, seed=1)
             with mock.patch.object(gate, "git", return_value="up"), \
+                    mock.patch.object(gate, "target_problem", return_value=None), \
                     mock.patch.object(gate.subprocess, "run", return_value=types.SimpleNamespace(returncode=0)), \
                     mock.patch.object(gate, "list_names", return_value=["A"]), \
                     mock.patch.object(gate, "choose_benchmarks", return_value=(["A"], 3, 0.0)), \
