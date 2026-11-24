@@ -185,7 +185,7 @@ It prints a table of PASS, WARN and FAIL rows and exits 1 on any FAIL. Consumers
 | `hook pre-push`, `hook post-checkout` | The hook is in the directory git looks in (`core.hooksPath` honoured), is a sub0perf hook, calls an existing `bench_check.py` and an existing python, and is byte-identical to what `install-hooks` writes for this tooling. Other python or script paths with the same logic are a WARN; a changed hook is a FAIL (drift: re-run `install-hooks`). In a tracked hooks directory, or under `SUB0MATH_PERF_HOOK_MODE=chain`, the committed hook must either carry the one chaining line (and `.git/sub0perf/hooks/<hook>` must match) or run `bench_check.py gate --refs-from-stdin` itself, the shared `templates/pre-push` stanza (PASS; WARN without `--refs-from-stdin`, or while no tooling record exists yet; FAIL for a literal path that does not exist). Neither is a FAIL, with both wirings named, and the chaining line to add |
 | `config`, `target <name>`, `baseline` | `.git/sub0perf/config.json` parses; the baseline exists and has benchmarks. A missing build dir or executable is a WARN ("not built yet") |
 | `pin <name>`, `config full_refs/quick_budget` | Pin entries have file and var and repo or checkout, the file exists and its `set(VAR <sha>)` parses; settings have the right type |
-| `gate: empty stdin`, `deletion only`, `docs-only range` | The real `gate_command` skips each, with synthetic refs |
+| `gate: empty stdin`, `deletion only`, `docs-only range`, `docs-only new branch` | The real `gate_command` skips each, with synthetic refs |
 | `gate: code range` | The gate plans a measuring run, and the quick plan's predicted seconds plus the probe allowance (a fifth of the budget while any benchmark has no recorded cost) fit the budget, from the repository's real coverage state |
 | `coverage <name>` | Always reported: benchmarks with no recorded cost (unknown), probed too slow (full level only), groups deferred, pushes to cover every group, the stalest group. A WARN while any is unknown or slow |
 | `gate power: ...` | With the power state faked (`SUB0PERF_FAKE_POWER`): battery and a battery saver defer, strict mode fails, `SUB0MATH_PERF_ON_BATTERY=1` and unknown power measure; each deferral names the override |
@@ -352,8 +352,8 @@ an untracked hooks directory. `selftest` checks the line and the chained copy (s
   the commit being pushed for any ref (deletions excepted) is not the checked-out HEAD. A push that
   only deletes refs is not measured, and neither is one whose every update against the remote changes only
   documentation (Markdown, `docs/`, licence files, provenance manifests under `upstream/`, CI configuration under `.github/` and `.ci/`): measuring then could only find noise, and a bimodal
-  benchmark once blocked an AGENTS.md change. The skip is logged. A new branch, or a remote commit not
-  present locally, is always measured. Otherwise the build is the pushed commit and the gate proceeds.
+  benchmark once blocked an AGENTS.md change. The skip is logged. A new branch is compared with its branch point (the merge-base with its upstream, else with the remote's default branch, `refs/remotes/<remote>/HEAD`); a remote commit not
+  present locally, or a new branch with no branch point that resolves, is measured. Otherwise the build is the pushed commit and the gate proceeds.
   Run by hand (`bench_check.py gate`, without `--refs-from-stdin`) it only warns about a dirty tree.
 
   **Inconclusive results retry, then warn.** If the result includes NOISY or ENVIRONMENT verdicts

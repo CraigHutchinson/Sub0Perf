@@ -27,7 +27,9 @@ class PushedRefsTest(unittest.TestCase):
         self.assertFalse(gitstate.documentation_only(update, code))
         self.assertFalse(gitstate.documentation_only(update, lambda *_: None))  # remote commit unknown: measure
         new_branch = [("refs/heads/x", self.HEAD, "refs/heads/x", self.ZERO)]
-        self.assertFalse(gitstate.documentation_only(new_branch, docs))  # nothing to diff against: measure
+        self.assertTrue(gitstate.documentation_only(new_branch, docs))  # the lister compares with the branch point
+        self.assertFalse(gitstate.documentation_only(new_branch, code))
+        self.assertFalse(gitstate.documentation_only(new_branch, lambda *_: None))  # no branch point resolves: measure
         self.assertFalse(gitstate.documentation_only([("refs/heads/x", self.ZERO, "refs/heads/x", self.OTHER)], docs))
         self.assertFalse(gitstate.is_documentation("docsy/a.cpp"))
         self.assertTrue(gitstate.is_documentation("upstream/bikelab.json"))  # provenance manifests are not built
@@ -66,6 +68,62 @@ class PushedRefsTest(unittest.TestCase):
 def git_run(repo, *args):
     subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", *args], check=True,
                    capture_output=True)
+
+
+class NewBranchPathsTest(RepoTestCase):
+    """A new branch (zero remote sha) is compared with where it left the upstream, else the remote's default branch."""
+
+    ZERO = "0" * 40
+
+    def commit(self, name, text="x"):
+        path = self.repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        git_run(self.repo, "add", name)
+        git_run(self.repo, "commit", "-q", "-m", name)
+        return gitstate.git_head(self.repo)
+
+    def with_default_branch(self):
+        base = self.commit("base.txt")
+        git_run(self.repo, "update-ref", "refs/remotes/origin/main", base)
+        git_run(self.repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+        return base
+
+    def test_a_new_docs_only_branch_is_compared_with_the_default_branch(self):
+        base = self.with_default_branch()
+        git_run(self.repo, "checkout", "-q", "-b", "topic")
+        self.commit("docs/a.md")
+        head = self.commit("README.md")
+        self.assertEqual(gitstate.branch_point(self.repo, head), base)
+        paths = gitstate.changed_paths_between(self.repo, self.ZERO, head)
+        self.assertEqual(sorted(paths), ["README.md", "docs/a.md"])
+        refs = [("refs/heads/topic", head, "refs/heads/topic", self.ZERO)]
+        self.assertTrue(gitstate.documentation_only(refs, lambda r, l: gitstate.changed_paths_between(self.repo, r, l)))
+
+    def test_a_new_branch_with_a_code_change_is_measured(self):
+        self.with_default_branch()
+        git_run(self.repo, "checkout", "-q", "-b", "topic")
+        self.commit("docs/a.md")
+        head = self.commit("src/a.cpp")
+        refs = [("refs/heads/topic", head, "refs/heads/topic", self.ZERO)]
+        self.assertFalse(gitstate.documentation_only(refs, lambda r, l: gitstate.changed_paths_between(self.repo, r, l)))
+
+    def test_the_upstream_is_preferred_over_the_default_branch(self):
+        self.with_default_branch()
+        git_run(self.repo, "checkout", "-q", "-b", "topic")
+        mid = self.commit("src/a.cpp")
+        git_run(self.repo, "update-ref", "refs/remotes/origin/topic", mid)
+        git_run(self.repo, "config", "remote.origin.url", "/nowhere")
+        git_run(self.repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+        git_run(self.repo, "config", "branch.topic.remote", "origin")
+        git_run(self.repo, "config", "branch.topic.merge", "refs/heads/topic")
+        head = self.commit("docs/a.md")
+        self.assertEqual(gitstate.changed_paths_between(self.repo, self.ZERO, head), ["docs/a.md"])
+
+    def test_with_no_remote_to_compare_with_the_branch_is_measured(self):
+        head = self.commit("docs/a.md")
+        self.assertIsNone(gitstate.branch_point(self.repo, head))
+        self.assertIsNone(gitstate.changed_paths_between(self.repo, self.ZERO, head))
 
 
 class AcceptedSinceTest(RepoTestCase):

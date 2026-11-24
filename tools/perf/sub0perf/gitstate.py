@@ -194,23 +194,43 @@ def is_documentation(path):
 def documentation_only(refs, changed_paths):
     """True when every pushed update changes only documentation, so measuring could only find noise.
 
-    `changed_paths(remote_sha, local_sha)` lists the files between two commits, or None when unknown (a new
-    branch, or a remote commit not present locally); unknown means measure.
+    `changed_paths(remote_sha, local_sha)` lists the files between two commits, or None when unknown (a remote commit not
+    present locally, or a new branch with nothing to compare against); unknown means measure. A new branch (a zero remote sha)
+    is asked with that zero sha: the lister compares against the branch point (see `changed_paths_between`).
     """
     pushed = pushed_refs(refs)
     if not pushed:
         return False
     for _, local_sha, _, remote_sha in pushed:
-        if set(remote_sha) == ZERO_SHA_CHARS:
-            return False
         paths = changed_paths(remote_sha, local_sha)
         if paths is None or not all(is_documentation(p) for p in paths):
             return False
     return True
 
 
+def branch_point(repo, local_sha):
+    """The commit a new branch started from: the merge-base of `local_sha` with the branch's upstream, else with a remote's default
+    branch (`refs/remotes/<remote>/HEAD`, origin first). None when neither resolves (then the push is measured)."""
+    candidates = []
+    upstream = git(repo, "rev-parse", "--verify", "-q", "@{upstream}")
+    if upstream:
+        candidates.append(upstream)
+    heads = (git(repo, "for-each-ref", "--format=%(refname)", "refs/remotes/*/HEAD") or "").split()
+    candidates += sorted(heads, key=lambda ref: ref != "refs/remotes/origin/HEAD")
+    for candidate in candidates:
+        base = git(repo, "merge-base", candidate, local_sha)
+        if base:
+            return base
+    return None
+
+
 def changed_paths_between(repo, remote_sha, local_sha):
-    """Files changed between two commits, or None when the remote commit is not present locally."""
+    """Files changed between two commits, or None when there is nothing to compare against: the remote commit is not present
+    locally, or (a zero `remote_sha`, a new branch) no branch point resolves."""
+    if set(remote_sha) == ZERO_SHA_CHARS:
+        remote_sha = branch_point(repo, local_sha)
+        if remote_sha is None:
+            return None
     out = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", "-z", remote_sha, local_sha],
                          capture_output=True, text=True)
     return [p for p in out.stdout.split("\0") if p] if out.returncode == 0 else None
