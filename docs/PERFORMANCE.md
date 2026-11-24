@@ -595,6 +595,8 @@ after-build check (`--record`) or the gate. `--filter` keeps whole groups, so a 
 REGRESSED means the new build is slower than the old one. CMake: `SUB0MATH_COMPARE_AGAINST=<exe>` and
 `SUB0MATH_COMPARE_FILTER=<text>` replace the kept build and add a filter.
 
+**Bounded, visible runs.** `compare`, `gate` and `auto` print one progress line per round on stderr (round n/N, rows, ETA); stdout stays the output contract. `compare --budget SECONDS` (default 300, 0 = no limit): without `--filter`, a run whose probe-costed estimate exceeds it is refused with the estimate and the `--filter` / `--budget` to use. Every benchmark process has a wall-clock cap, a tenth of the budget or 3x the row's recorded cost, whichever is larger (quick level and `compare`; a full run has none): a row that hits it is killed, dropped from the run, and listed as `TIMEOUT` in the outcome's `changed[]` with a `next_action`; it never blocks. This is also what stops a row whose timed body is empty (about 1 ns, iteration scaling never converges). `BenchRunner::setup(name, fn)` registers a one-shot, untimed setup that runs only in a process that runs that row, so a large input is no longer built by every process of every round.
+
 ## Profiling
 
 Build with the `profile` preset (optimised, debug info, frame pointers), then:

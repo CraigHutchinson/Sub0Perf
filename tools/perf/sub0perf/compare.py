@@ -19,9 +19,10 @@ from .gitstate import git, perf_dir
 from .judge import evaluate_with
 from .report import render
 from .reproduce import groups_of, side_by_side
-from .runner import list_names
+from .runner import list_names, probe_unknown, process_cap_for, progress, set_process_cap
 
 MIN_ROUNDS = 10
+DEFAULT_BUDGET = 300.0  # seconds; `compare --budget`
 
 
 def kept_builds(repo, target):
@@ -68,7 +69,18 @@ def shared_names(listing, exe, ref, text_filter):
     return groups_of(sorted(matching), both) if matching else []
 
 
-def compare_command(args, measure=side_by_side, listing=list_names):
+def estimate_run(exe, names, rounds, args, budget, probe):
+    """(estimated seconds of the whole run, per-row costs): one sample of each row costs a round, and both builds run `rounds` rounds.
+    The probe is itself cut off after the share of the budget one round may take, which already means the run is too long."""
+    allowance = budget / (2 * rounds)
+    costs, slow, spent = probe(exe, names, args, allowance, allowance)
+    if len(costs) < len(names) or slow:
+        seen = max(len(costs) + len(slow), 1)
+        return spent / seen * len(names) * 2 * rounds, costs
+    return sum(costs.values()) * 2 * rounds, costs
+
+
+def compare_command(args, measure=side_by_side, listing=list_names, probe=probe_unknown):
     fmt = output.resolve_format(args)
     ref, described = resolve_against(args)
     if ref is None:
@@ -84,6 +96,18 @@ def compare_command(args, measure=side_by_side, listing=list_names):
                 print("sub0perf: compare: the two builds share no benchmark matching the filter")
                 quiet.exit_code = 2
                 return 2
+            budget = DEFAULT_BUDGET if args.budget is None else args.budget
+            costs = {}
+            if budget > 0 and not args.filter:
+                estimate, costs = estimate_run(args.exe, names, rounds, args, budget, probe)
+                if estimate > budget:
+                    print(f"sub0perf: compare: {len(names)} benchmarks over {rounds} rounds on both builds would take about "
+                          f"{estimate:.0f} s, over the {budget:.0f} s budget. Limit it with --filter TEXT, or raise it with --budget SECONDS "
+                          f"(0 = no limit)")
+                    quiet.exit_code = 2
+                    return 2
+            set_process_cap(lambda name: process_cap_for(budget, costs.get(name)))
+            progress.begin(rounds * 2)
             now, old = measure(args.exe, str(ref), names, rounds, args)
         except Exception as error:  # a build that does not start is no verdict
             print(f"sub0perf: compare failed ({type(error).__name__}: {error})")

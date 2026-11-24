@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 from .common import atomic_write_text, tooling_script
+from . import runner
 from .judge import verdict_hits
 
 FORMATS = ("brief", "json", "md")
@@ -150,6 +151,9 @@ def changed_rows(rows, pair_rows, env, args, verdicts=("REGRESSED", "IMPROVED"))
                 tol = args.instr_tolerance if key == "instructions" else args.tolerance
                 out.append({"name": f"{row['name']} [{key}]", "kind": "counter", "verdict": verdict, "change": change,
                             "noise": 0.0, "tolerance": tol})
+    for name, cap in runner.TIMED_OUT.items():  # never blocks; listed so nothing disappears silently
+        out.append({"name": name, "kind": "benchmark", "verdict": "TIMEOUT", "change": None, "noise": 0.0, "tolerance": 0.0,
+                    "limit_s": cap, "next_action": f'{_script()} compare --exe <exe> --filter "{name}" --budget <seconds>'})
     return out
 
 
@@ -162,6 +166,8 @@ def counts_of(rows, pair_rows, env):
 
 def brief_line(entry):
     change = "n/a" if entry["change"] is None else f"{entry['change']:+.1%}"
+    if entry["verdict"] == "TIMEOUT":
+        return f"TIMEOUT {entry['name']}: killed after {entry['limit_s']:.0f} s; {entry['next_action']}"
     return f"{entry['verdict']} {entry['name']}: {change} (noise {entry['noise']:.1%}, tol {entry['tolerance']:.0%})"
 
 

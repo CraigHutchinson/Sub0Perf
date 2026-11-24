@@ -4,6 +4,7 @@ import json
 import random
 import statistics
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -62,6 +63,44 @@ def steady_calibration(read):
     return previous
 
 
+TIMED_OUT = {}  # benchmark name -> the wall-clock cap (seconds) its process hit; filled by run_rounds, read by the outcome
+_process_cap = None  # callable(name) -> seconds or None: the hard wall-clock cap of one benchmark process. Set once per command.
+
+
+def set_process_cap(cap):
+    """`cap(name)` gives a benchmark process's wall-clock limit in seconds (None = unlimited). Clears earlier time-outs."""
+    global _process_cap
+    _process_cap = cap
+    TIMED_OUT.clear()
+
+
+def process_cap_for(budget, recorded_cost=None):
+    """The cap for one benchmark process: a tenth of the budget or 3x the row's recorded cost, whichever is larger."""
+    if not budget or budget <= 0:
+        return None
+    return max(budget / 10.0, 3.0 * recorded_cost if recorded_cost else 0.0)
+
+
+class _Progress:
+    """One line per round on stderr (stdout stays the output contract): round n/N, rows, ETA."""
+
+    def __init__(self):
+        self.total, self.done, self.began = 0, 0, None
+
+    def begin(self, total):
+        self.total, self.done, self.began = total, 0, time.monotonic()
+
+    def line(self, round_index, rows):
+        self.done += 1
+        if self.began is None or self.done > self.total:
+            return f"round {round_index + 1}, {rows} benchmarks"
+        eta = (time.monotonic() - self.began) / self.done * (self.total - self.done)
+        return f"round {self.done}/{self.total}, {rows} benchmarks, ETA {eta:.0f} s"
+
+
+progress = _Progress()
+
+
 class PowerChanged(Exception):
     """The machine went on battery (or into a battery saver) during a run: what was measured is inconclusive."""
 
@@ -102,9 +141,16 @@ def run_rounds(exe, names, rounds, epochs, max_load, settle, seed, first_round=0
                 members = list(groups[g])
                 rng.shuffle(members)
                 sequence += members
+            sequence = [n for n in sequence if n not in TIMED_OUT]  # a row that hit its cap is not tried again in this command
             for k, n in enumerate(sequence):
                 began = time.monotonic()
-                ns, found = measure_full(exe, ["--exact", n, *extra], scratch)[n]
+                cap = _process_cap(n) if _process_cap else None
+                try:
+                    ns, found = measure_full(exe, ["--exact", n, *extra], scratch, cap)[n]
+                except subprocess.TimeoutExpired:
+                    TIMED_OUT[n] = cap
+                    print(f"sub0perf: TIMEOUT {n}: its process ran past {cap:.0f} s and was killed", file=sys.stderr, flush=True)
+                    continue
                 if timings is not None:
                     timings["bench"].setdefault(n, []).append(time.monotonic() - began)
                 samples.setdefault(n, []).append(ns)
@@ -118,8 +164,12 @@ def run_rounds(exe, names, rounds, epochs, max_load, settle, seed, first_round=0
                 timings["overhead"].append(overhead + time.monotonic() - began)
             meta.append({"round": r, "load": round(load, 4), "waited_s": round(waited, 1), "quiet": quiet,
                          "calibration_start_ns": cal_start, "calibration_end_ns": cal_end})
-            print(f"round {r + 1}: load {load:.0%}{'' if quiet else ' (busy)'}, calibration {cal_start:,.0f}/{cal_end:,.0f} ns,"
-                  f" {sum(len(m) for m in groups.values())} benchmarks", flush=True)
+            print(f"sub0perf: {progress.line(r, sum(len(m) for m in groups.values()))}; load {load:.0%}{'' if quiet else ' (busy)'}, "
+                  f"calibration {cal_start:,.0f}/{cal_end:,.0f} ns", file=sys.stderr, flush=True)
+    for n in TIMED_OUT:  # a row with a time-out has no verdict; the outcome lists it as TIMEOUT
+        samples.pop(n, None)
+        positions.pop(n, None)
+        counters.pop(n, None)
     return samples, meta, positions, counters
 
 
@@ -147,6 +197,7 @@ def measure_all(exe, args, names=None, rounds=None, timings=None):
 
     Every benchmark (those matching --filter), or just `names` when a plan chose them; `rounds` overrides args.rounds.
     """
+    progress.begin(rounds or args.rounds)
     return run_rounds(exe, names if names is not None else list_names(exe, args.filter), rounds or args.rounds, args.epochs,
                       args.max_load, args.settle, args.seed, timings=timings)
 

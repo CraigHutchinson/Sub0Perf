@@ -24,6 +24,7 @@ int main(int argc, char** argv)
     runner.metric("odd \"name\"\\", 1.5, "x", sub0bench::MetricKind::max);
     runner.metric("sizeof int", 4, "B");  // the last value of a name wins
     int ran = 0;
+    runner.setup("add, double", [&] { std::fputs("setup add\n", stderr); });
     runner.run("add, double", [&] { ++ran; ankerl::nanobench::doNotOptimizeAway(ran); });
     runner.run("mul, double", [&] { ankerl::nanobench::doNotOptimizeAway(ran *= 2); });
     runner.run("inside", [&] { runner.metric("ran", 7, "n"); });
@@ -53,6 +54,15 @@ class BenchRunnerTest(unittest.TestCase):
     def run_exe(self, *args):
         return subprocess.run([str(self.exe), *args], capture_output=True, text=True, timeout=120)
 
+    def test_setup_runs_once_only_in_a_process_that_runs_its_row(self):
+        self.assertNotIn("setup add", self.run_exe("--list").stderr)
+        self.assertNotIn("setup add", self.run_exe("--exact", "mul, double", "--smoke").stderr)
+        self.assertNotIn("setup add", self.run_exe("--calibration", "--epochs", "2").stderr)
+        mine = self.run_exe("--exact", "add, double", "--smoke")
+        self.assertEqual(mine.returncode, 0, mine.stderr)
+        self.assertEqual(mine.stderr.count("setup add"), 1)
+        self.assertEqual(self.run_exe("--smoke").stderr.count("setup add"), 1)
+
     def test_metrics_only_writes_the_metrics_to_stdout_without_timing(self):
         done = self.run_exe("--metrics-only")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -74,7 +84,7 @@ class BenchRunnerTest(unittest.TestCase):
 
     def test_smoke_is_exit_status_only(self):
         done = self.run_exe("--smoke")
-        self.assertEqual((done.returncode, done.stdout, done.stderr), (0, "", ""))
+        self.assertEqual((done.returncode, done.stdout, done.stderr), (0, "", "setup add\n"))  # the setup of the one row that ran
 
     def test_smoke_with_no_matching_benchmark_fails(self):
         self.assertEqual(self.run_exe("--smoke", "--filter", "nothing here").returncode, 1)

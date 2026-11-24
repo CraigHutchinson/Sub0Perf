@@ -30,6 +30,12 @@
 // Call it before the runs, or inside a workload (which --metrics-only and --smoke execute once); the last value of a
 // name wins. Metrics are only written by --metrics-only.
 //
+// Setup. runner.setup("corpus 1e5", [&] { corpus = makeCorpus(100000); }) registers a one-shot, untimed setup for the row of that
+// exact name. It runs once, immediately before that row's workload, and only in a process that runs that row: not for --list,
+// --calibration, or a process asked for another row with --exact (bench_check.py starts one process per row and round). A row that
+// builds a large input inside main() pays that cost in every process of every round; with setup() it is paid only where it is used.
+// Existing rows are unchanged. A process that never selects the row never builds its input.
+//
 // Include after defining ANKERL_NANOBENCH_IMPLEMENT in exactly one translation unit.
 
 #include <algorithm>
@@ -39,6 +45,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #include <nanobench.h>
 #include <string>
 #include <string_view>
@@ -134,6 +141,20 @@ public:
         metrics_.push_back(Metric{name, unit, value, kind});
     }
 
+    // Registers the one-shot untimed setup of the row `name` (see the header comment). Registering a name again replaces it.
+    void setup(const char* name, std::function<void()> fn)
+    {
+        for (auto& s : setups_)
+        {
+            if (s.name == name)
+            {
+                s.fn = std::move(fn);
+                return;
+            }
+        }
+        setups_.push_back(Setup{name, std::move(fn)});
+    }
+
     template<typename Op>
     void run(const char* name, Op&& op)
     {
@@ -147,6 +168,7 @@ public:
             return;
         }
         ++selected_;
+        runSetup(name);
         if (metricsOnly_ || smoke_)  // the workload once: its metric() calls register, a failure shows in the exit status
         {
             op();
@@ -212,6 +234,26 @@ public:
     }
 
 private:
+    struct Setup
+    {
+        std::string name;
+        std::function<void()> fn;
+    };
+
+    void runSetup(std::string_view name)
+    {
+        for (auto it = setups_.begin(); it != setups_.end(); ++it)
+        {
+            if (it->name == name)
+            {
+                const auto fn = std::move(it->fn);
+                setups_.erase(it);
+                fn();
+                return;
+            }
+        }
+    }
+
     struct Metric
     {
         std::string name;
@@ -356,6 +398,7 @@ private:
     ankerl::nanobench::Bench bench_;
     std::vector<ankerl::nanobench::Result> results_;
     std::vector<Metric> metrics_;
+    std::vector<Setup> setups_;
     std::string filter_;
     std::string json_;
     std::string exact_;
