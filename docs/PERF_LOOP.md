@@ -11,7 +11,7 @@ Set once per shell (hooks and agents: always):
 export SUB0PERF_OUTPUT=brief          # check/auto/gate/compare/metrics print ONE verdict line + one line per change beyond noise
 ```
 
-`T` below is the benchmark target (for example `Sub0Math_Bench`), `B` the build directory.
+`T` below is the benchmark target (for example `MyLibrary_Bench`), `B` the build directory.
 
 ## The loop
 

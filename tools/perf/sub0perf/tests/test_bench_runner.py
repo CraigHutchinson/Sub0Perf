@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 PERF = ROOT / "tools" / "perf"
-VENDOR = ROOT / "tests" / "vendor"
+VENDOR = ROOT / "vendor"
 COMPILER = shutil.which("g++") or shutil.which("clang++") or shutil.which("c++")
 
 SOURCE = r'''
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 '''
 
 
-@unittest.skipUnless(COMPILER and (VENDOR / "nanobench.h").is_file(), "needs a C++ compiler and tests/vendor/nanobench.h")
+@unittest.skipUnless(COMPILER and (VENDOR / "nanobench.h").is_file(), "needs a C++ compiler and vendor/nanobench.h")
 class BenchRunnerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

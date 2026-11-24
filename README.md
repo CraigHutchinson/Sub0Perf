@@ -1,0 +1,36 @@
+# Sub0Perf
+
+Performance tooling for the Sub0 family of C++ libraries: a benchmark runner, interleaved and calibrated timing rounds,
+per-host baselines, a pre-push regression gate, deterministic metrics, an A/B compare loop and profiler targets.
+Python (standard library only) and CMake; the runner is one C++ header on top of the vendored
+[nanobench](https://github.com/martinus/nanobench).
+
+It was extracted from Sub0Math with every name kept (`sub0math_*` CMake functions, `SUB0MATH_*` variables,
+`sub0math_tooling_dir.txt`); renaming to `sub0perf_*` / `SUB0PERF_*` is a later, separate change.
+
+## Use
+
+```cmake
+CPMAddPackage(NAME Sub0Perf GITHUB_REPOSITORY CraigHutchinson/Sub0Perf GIT_TAG <commit-sha>)
+include("${Sub0Perf_SOURCE_DIR}/cmake/Sub0Perf.cmake")
+sub0math_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
+```
+
+See [examples/bench_sample.cpp](examples/bench_sample.cpp) and [docs/PERFORMANCE.md](docs/PERFORMANCE.md) (timing budgets,
+the gate, deterministic metrics, output contract, profiling) and [docs/PERF_LOOP.md](docs/PERF_LOOP.md) (the improve loop).
+
+## Build and test this repository
+
+```bash
+python -m unittest discover -s tools/perf       # the tooling's own tests
+cmake --preset default                           # configure the sample benchmark
+cmake --build --preset default
+ctest --preset default                           # sample smoke and metrics tests (no timing)
+python tools/perf/bench_check.py selftest --repo .
+```
+
+Timing is never measured in CI: shared runners are too noisy. The gate runs locally, in each consumer's pre-push hook.
+
+## Licence
+
+MIT, see [LICENSE.md](LICENSE.md). `vendor/nanobench.h` is MIT-licensed by its author.

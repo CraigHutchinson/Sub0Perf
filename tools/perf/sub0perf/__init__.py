@@ -1,4 +1,4 @@
-"""Sub0Math performance tooling. `tools/perf/bench_check.py` is the command-line entry point (a thin shim over `cli`).
+"""Sub0Perf performance tooling. `tools/perf/bench_check.py` is the command-line entry point (a thin shim over `cli`).
 
 Modules, lowest layer first:
 

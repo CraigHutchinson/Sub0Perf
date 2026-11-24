@@ -1,16 +1,16 @@
 name: Tools tests
 
-# The performance and provenance tooling's own self-tests (synthetic samples, temporary git repositories);
+# The performance tooling's own self-tests (synthetic samples, temporary git repositories);
 # standard library only, about a minute. Runs in the smoke tier only when tools/ changed (paths filter), and
 # always in the full tier (ci-full.yml calls this workflow). Honours CI_MODE=off.
 
 on:
   push:
     branches: [main]
-    paths: ['tools/**', '.github/workflows/tools-tests.yml']
+    paths: ['tools/**', 'vendor/**', '.github/workflows/tools-tests.yml']
   pull_request:
     branches: [main]
-    paths: ['tools/**', '.github/workflows/tools-tests.yml']
+    paths: ['tools/**', 'vendor/**', '.github/workflows/tools-tests.yml']
   workflow_call:
 
 concurrency:
@@ -32,5 +32,3 @@ jobs:
           python-version: "3.12"
       - name: Unit tests (tools/perf)
         run: python -m unittest discover -s tools/perf -v
-      - name: Unit tests (tools/provenance)
-        run: python -m unittest discover -s tools/provenance -v

@@ -102,7 +102,7 @@ class SustainedUnavailable(Exception):
     """The sustained reading could not be taken; the message says what happened and what to do. The burst figure is used alone."""
 
 
-REBUILD_ADVICE = "rebuild the benchmark executable (against a Sub0Math with `--calibration --soak`) to get the sustained reading"
+REBUILD_ADVICE = "rebuild the benchmark executable (against a Sub0Perf with `--calibration --soak`) to get the sustained reading"
 
 
 def read_sustained_ns(exe, warm):

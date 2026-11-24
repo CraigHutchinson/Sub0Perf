@@ -1,0 +1,7 @@
+{
+  "schema": "sub0perf-metrics-spec-1",
+  "metrics": {
+    "sizeof sample element": {"kind": "exact", "expected": 8, "unit": "B"}
+  },
+  "accepted": []
+}

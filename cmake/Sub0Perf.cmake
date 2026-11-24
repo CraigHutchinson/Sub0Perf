@@ -1,4 +1,4 @@
-# Performance tooling shared by the Sub0 family (Sub0Math and every library above it).
+# Performance tooling shared by the Sub0 family (Sub0Perf, and every library that benchmarks).
 #
 #   sub0math_target_perf_options(<target>)
 #       Applies the profiling, vectorization-report and native-architecture options to a target.
@@ -40,7 +40,7 @@
 #   sub0math_label_full_tests(<test>...)
 #       Adds the "full" label to tests that already exist (same directory scope).
 #
-# Consumers include this file from the Sub0Math source tree (CPM sets Sub0Math_SOURCE_DIR).
+# Consumers include this file from the Sub0Perf source tree (CPM sets Sub0Perf_SOURCE_DIR).
 
 include_guard(GLOBAL)
 
@@ -72,7 +72,7 @@ option(SUB0MATH_PERF_GIT_HOOKS "Install the pre-push performance gate and post-c
        ${_sub0math_hooks_default})
 
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0math_tooling_dir.txt)/profile.py" ...`.
-# CPM may place Sub0Math anywhere, so consumers should not hard-code the path.
+# CPM may place Sub0Perf anywhere, so consumers should not hard-code the path.
 get_filename_component(_sub0math_tooling_dir "${CMAKE_CURRENT_LIST_DIR}/../tools/perf" ABSOLUTE)
 file(WRITE "${CMAKE_BINARY_DIR}/sub0math_tooling_dir.txt" "${_sub0math_tooling_dir}")
 
@@ -101,10 +101,13 @@ function(sub0math_target_perf_options target)
     endif()
 endfunction()
 
+# Transition copy: Sub0Math owns this function (cmake/Sub0MathFp.cmake); the copy applies only when nothing else defined it,
+# and goes with the rename.
 # Floating-point determinism: no contraction of a * b + c into a fused multiply-add. GCC defaults to
 # -ffp-contract=fast in gnu modes and Clang/MSVC contract under some flags, so a build with FMA hardware
 # (-march=native, SUB0MATH_NATIVE_ARCH, -march=x86-64-v3) would otherwise round differently from one
 # without. Scope is INTERFACE for header-only libraries so consumers' translation units inherit it.
+if(NOT COMMAND sub0math_target_deterministic_fp)
 function(sub0math_target_deterministic_fp target)
     set(scope PRIVATE)
     if(ARGC GREATER 1)
@@ -132,6 +135,7 @@ function(sub0math_target_deterministic_fp target)
         endif()
     endif()
 endfunction()
+endif()
 
 # Quality gates come in the same two levels as the performance gate. A suite that takes long is labelled
 # "full"; everyday runs exclude it (ctest -LE full, or the "quick" test preset), milestones and CI run everything.
@@ -164,7 +168,7 @@ function(sub0math_add_benchmark target)
         message(FATAL_ERROR "sub0math_add_benchmark(<target> <sources>... [METRICS <spec>] [SMOKE_TEST]): sources are required")
     endif()
     get_filename_component(tooling "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../tools/perf" ABSOLUTE)
-    get_filename_component(vendor "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../tests/vendor" ABSOLUTE)
+    get_filename_component(vendor "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../vendor" ABSOLUTE)
     add_executable(${target} ${sources})
     target_include_directories(${target} SYSTEM PRIVATE "${tooling}" "${vendor}")
     target_compile_features(${target} PRIVATE cxx_std_23)

@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "description": "Sub0Perf local checks (docs/PERFORMANCE.md); run: python <.github repo>/tools/ci/local_ci.py --level quick|full",
+  "selftest": [
+    "{python} tools/perf/bench_check.py selftest --repo ."
+  ],
+  "levels": {
+    "quick": {
+      "steps": [
+        {
+          "name": "python-tests",
+          "commands": [
+            "{python} -m unittest discover -s tools/perf"
+          ]
+        },
+        {
+          "name": "sample-build",
+          "commands": [
+            "cmake --preset default -B {builddir} -G Ninja",
+            "cmake --build {builddir} -j {jobs}",
+            "ctest --test-dir {builddir} --output-on-failure"
+          ]
+        },
+        {
+          "name": "private-names",
+          "commands": [
+            "{python} {ci_dir}/private_names.py --staged --repo {repo}",
+            "{python} {ci_dir}/private_names.py --tree --repo {repo}"
+          ]
+        },
+        {
+          "name": "hook-check",
+          "commands": [
+            "{python} {ci_dir}/hook_check.py --repo {repo}"
+          ]
+        }
+      ]
+    },
+    "full": {
+      "steps": [
+        {
+          "name": "python-tests",
+          "commands": [
+            "{python} -m unittest discover -s tools/perf"
+          ]
+        },
+        {
+          "name": "sample-build",
+          "commands": [
+            "cmake --preset default -B {builddir} -G Ninja",
+            "cmake --build {builddir} -j {jobs}",
+            "ctest --test-dir {builddir} --output-on-failure"
+          ]
+        }
+      ]
+    }
+  }
+}

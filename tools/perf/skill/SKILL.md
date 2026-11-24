@@ -5,7 +5,7 @@ description: Make a benchmarked C++ function faster and prove it with the Sub0 f
 
 # sub0perf improve loop
 
-Full text: `docs/PERF_LOOP.md` in Sub0Math. Do the steps in order; read only the verdict lines.
+Full text: `docs/PERF_LOOP.md` in Sub0Perf. Do the steps in order; read only the verdict lines.
 
 Setup (once per shell): `export SUB0PERF_OUTPUT=brief`. `T` = the benchmark target, `B` = the build dir. Measure on mains,
 on a quiet machine; never run two measuring commands at once (they take a lock).
