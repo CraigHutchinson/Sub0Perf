@@ -2,9 +2,7 @@
 #
 #   sub0math_target_perf_options(<target>)
 #       Applies the profiling, vectorization-report and native-architecture options to a target.
-#   sub0math_target_deterministic_fp(<target> [INTERFACE|PUBLIC|PRIVATE])
-#       Forbids fused multiply-add contraction so results are bit-identical across -march levels and
-#       compilers (-ffp-contract=off, /fp:precise). Default scope PRIVATE; see docs/PERFORMANCE.md.
+#   (sub0math_target_deterministic_fp, the no-FMA-contraction option, is Sub0Math's: cmake/Sub0MathFp.cmake there.)
 #   sub0math_add_benchmark(<target> <sources>... [METRICS <spec>] [SMOKE_TEST])
 #       Builds a nanobench executable using tools/perf/bench_runner.hpp, plus these targets:
 #         <target>_json             run it once and write build/perf/<target>.json (nanobench format)
@@ -100,42 +98,6 @@ function(sub0math_target_perf_options target)
             $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-march=native>)
     endif()
 endfunction()
-
-# Transition copy: Sub0Math owns this function (cmake/Sub0MathFp.cmake); the copy applies only when nothing else defined it,
-# and goes with the rename.
-# Floating-point determinism: no contraction of a * b + c into a fused multiply-add. GCC defaults to
-# -ffp-contract=fast in gnu modes and Clang/MSVC contract under some flags, so a build with FMA hardware
-# (-march=native, SUB0MATH_NATIVE_ARCH, -march=x86-64-v3) would otherwise round differently from one
-# without. Scope is INTERFACE for header-only libraries so consumers' translation units inherit it.
-if(NOT COMMAND sub0math_target_deterministic_fp)
-function(sub0math_target_deterministic_fp target)
-    set(scope PRIVATE)
-    if(ARGC GREATER 1)
-        set(scope "${ARGV1}")
-    endif()
-    if(NOT scope MATCHES "^(INTERFACE|PUBLIC|PRIVATE)$")
-        message(FATAL_ERROR "sub0math_target_deterministic_fp: scope must be INTERFACE, PUBLIC or PRIVATE, got '${scope}'")
-    endif()
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        target_compile_options(${target} ${scope} $<$<COMPILE_LANGUAGE:CXX>:/fp:precise>)
-    elseif(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC") # clang-cl
-        target_compile_options(${target} ${scope} $<$<COMPILE_LANGUAGE:CXX>:/fp:precise>
-                               $<$<COMPILE_LANGUAGE:CXX>:/clang:-ffp-contract=off>)
-    else() # GCC, Clang, AppleClang
-        target_compile_options(${target} ${scope} $<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
-    endif()
-    # MinGW-w64 GCC guarantees only 16-byte stack alignment, but AVX code (-march=x86-64-v3 or native) spills
-    # 32-byte vectors with aligned moves, which fault. Assembling vector moves as unaligned ones fixes it at no
-    # measurable cost; without it, a private consumer's tests segfaulted under -march=x86-64-v3 (2026-10-20).
-    if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        include(CheckCXXCompilerFlag)
-        check_cxx_compiler_flag("-Wa,-muse-unaligned-vector-move" SUB0MATH_HAVE_UNALIGNED_VECTOR_MOVE)
-        if(SUB0MATH_HAVE_UNALIGNED_VECTOR_MOVE)
-            target_compile_options(${target} ${scope} $<$<COMPILE_LANGUAGE:CXX>:-Wa,-muse-unaligned-vector-move>)
-        endif()
-    endif()
-endfunction()
-endif()
 
 # Quality gates come in the same two levels as the performance gate. A suite that takes long is labelled
 # "full"; everyday runs exclude it (ctest -LE full, or the "quick" test preset), milestones and CI run everything.
