@@ -285,8 +285,10 @@ everything. `sub0perf/speed.py` catches it first:
 
 ### Pre-push gate and explicit acceptance
 
-Configuring a repository that builds benchmarks installs two git hooks, unless on CI or
-`SUB0MATH_PERF_GIT_HOOKS=OFF`. A hook that is not ours is never overwritten: it is renamed to
+Configuring a repository that builds benchmarks installs two git hooks when `SUB0MATH_PERF_GIT_HOOKS` allows it: `AUTO` (the
+default) installs them only from the main checkout (a linked worktree has a `.git` file and shares the main checkout's hooks and
+configuration), where `perf/baselines/<host>.json` exists (`<host>` as below, also read from the environment variable of the
+same name), and never on CI; `ON` installs wherever a `.git` exists, `OFF` never. A hook that is not ours is never overwritten: it is renamed to
 `<hook>.user` and the installed hook runs it first (with the same arguments and stdin; if it fails, so
 does the push). Paths in the hooks are shell-quoted, and when python or the tooling directory is gone
 a hook prints a message and does nothing instead of failing.

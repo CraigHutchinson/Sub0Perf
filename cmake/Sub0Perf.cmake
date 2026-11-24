@@ -13,7 +13,7 @@
 #       The pre-push gate and the after-build check run at the quick level (a time budget, SUB0MATH_PERF_QUICK_BUDGET;
 #       pairs and controls always, the other benchmarks rotating) unless the push carries a tag matching
 #       SUB0MATH_PERF_FULL_REFS or SUB0MATH_PERF_LEVEL=full is set: docs/PERFORMANCE.md, "Levels".
-#       and installs the pre-push gate and post-checkout hooks (SUB0MATH_PERF_GIT_HOOKS, off on CI),
+#       and installs the pre-push gate and post-checkout hooks (SUB0MATH_PERF_GIT_HOOKS=AUTO|ON|OFF; AUTO: main checkout with a committed baseline, never on CI),
 #       and, unless SUB0MATH_PERF_ON_BUILD is OFF, a quick check after every rebuild of <target>
 #       (its code or a header it uses changed), reporting regressions and progressions implicitly.
 #         <target>_compare          interleaved A/B (>= 10 rounds) of this build against the newest kept build that differs
@@ -61,13 +61,9 @@ set(SUB0MATH_PERF_FULL_REFS "v*;milestone/*" CACHE STRING
     "Tag-name patterns (a list): pushing a matching tag runs the pre-push gate at the full level. Override a run with SUB0MATH_PERF_LEVEL=full|quick")
 set(SUB0MATH_PERF_QUICK_EPOCHS "0" CACHE STRING
     "nanobench epochs in the after-build check; 0 = default, the same method as baselines and records")
-if(DEFINED ENV{CI})
-    set(_sub0math_hooks_default OFF)
-else()
-    set(_sub0math_hooks_default ON)
-endif()
-option(SUB0MATH_PERF_GIT_HOOKS "Install the pre-push performance gate and post-checkout note in this repository's git hooks"
-       ${_sub0math_hooks_default})
+set(SUB0MATH_PERF_GIT_HOOKS "AUTO" CACHE STRING
+    "Pre-push performance gate and post-checkout note in this repository's git hooks: ON, OFF, or AUTO (the default: on only from the main checkout (a linked worktree shares its hooks and gate configuration: docs/PERFORMANCE.md), where perf/baselines/<host>.json exists, and never on CI)")
+set_property(CACHE SUB0MATH_PERF_GIT_HOOKS PROPERTY STRINGS AUTO ON OFF)
 
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0math_tooling_dir.txt)/profile.py" ...`.
 # CPM may place Sub0Perf anywhere, so consumers should not hard-code the path.
@@ -76,6 +72,9 @@ file(WRITE "${CMAKE_BINARY_DIR}/sub0math_tooling_dir.txt" "${_sub0math_tooling_d
 
 cmake_host_system_information(RESULT _sub0math_host QUERY HOSTNAME)
 string(TOLOWER "${_sub0math_host}" _sub0math_host)
+if(NOT DEFINED SUB0MATH_PERF_HOST AND DEFINED ENV{SUB0MATH_PERF_HOST})
+    set(_sub0math_host "$ENV{SUB0MATH_PERF_HOST}")   # the baseline name a shell chose; the cache variable still wins
+endif()
 set(SUB0MATH_PERF_HOST "${_sub0math_host}" CACHE STRING "Baseline name in perf/baselines/")
 
 function(sub0math_target_perf_options target)
@@ -230,7 +229,15 @@ function(sub0math_add_benchmark target)
 
     # Pre-push gate: blocks a push whose benchmarks regressed against the committed baseline or the
     # local record of the commit it started from, unless the regression was accepted (bench_check.py accept).
-    if(SUB0MATH_PERF_GIT_HOOKS AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    set(install_hooks "${SUB0MATH_PERF_GIT_HOOKS}")
+    if(install_hooks STREQUAL "AUTO")
+        if(NOT DEFINED ENV{CI} AND IS_DIRECTORY "${PROJECT_SOURCE_DIR}/.git" AND EXISTS "${baseline}")
+            set(install_hooks ON)
+        else()
+            set(install_hooks OFF)
+        endif()
+    endif()
+    if(install_hooks AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
         if(CMAKE_CONFIGURATION_TYPES)
             set(hook_config Release)
             set(hook_exe "${CMAKE_CURRENT_BINARY_DIR}/Release/${target}${CMAKE_EXECUTABLE_SUFFIX}")
