@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import levels
 from .common import atomic_write_text, read_json, tooling_script
-from .gitstate import git, git_head, log_event, perf_dir
+from .gitstate import git, git_head, inside, is_linked_worktree, log_event, perf_dir, worktree_roots
 from .pins import parse_pin
 
 
@@ -61,9 +61,10 @@ def is_tracked_dir(repo):
         return False
     top = Path(git(repo, "rev-parse", "--show-toplevel") or repo).resolve()
     where = hooks_dir(repo).resolve()
-    git_dir = Path(git(repo, "rev-parse", "--absolute-git-dir") or top / ".git").resolve()
-    inside = lambda p, root: p == root or root in p.parents
-    return inside(where, top) and not inside(where, git_dir)
+    common = git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    git_dir = Path(common or git(repo, "rev-parse", "--absolute-git-dir") or top / ".git").resolve()
+    roots = worktree_roots(repo) or [top]  # an absolute core.hooksPath into the main checkout is tracked from a linked worktree too
+    return any(inside(where, root) for root in roots) and not inside(where, git_dir)
 
 
 def chain_path(repo, name):
@@ -128,9 +129,18 @@ def install_hooks_command(args):
     if d is None:
         print(f"sub0perf: {repo} is not a git repository; hooks not installed")
         return 0
+    if is_linked_worktree(repo):  # the hooks and the config are shared by every worktree: only the main checkout writes them
+        print(f"sub0perf: {repo} is a linked worktree; hooks not installed. Install them from the main checkout, "
+              f"whose hooks this worktree already uses")
+        return 0
     d.mkdir(parents=True, exist_ok=True)
     config_path = d / "config.json"
     config = read_json(config_path) if config_path.is_file() else {"targets": {}}
+    held = config["targets"].get(args.target)
+    if getattr(args, "keep_existing", False) and held and Path(held.get("build_dir", "")).resolve() != Path(args.build_dir).resolve()             and Path(held.get("build_dir", "")).is_dir():
+        print(f"sub0perf: the gate for {args.target} keeps using {held['build_dir']}; {args.build_dir} left it alone "
+              f"(SUB0MATH_PERF_GIT_HOOKS=ON, or bench_check.py install-hooks, takes it over)")
+        return 0
     config["targets"][args.target] = {"build_dir": str(Path(args.build_dir).resolve()), "exe": str(Path(args.exe).resolve()),
                                       "baseline": str(Path(args.baseline).resolve()), "config": args.config or ""}
     if getattr(args, "full_refs", None):  # tag-name patterns whose push runs the full level; "" restores the defaults

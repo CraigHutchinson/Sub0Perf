@@ -293,6 +293,8 @@ same name), and never on CI; `ON` installs wherever a `.git` exists, `OFF` never
 does the push). Paths in the hooks are shell-quoted, and when python or the tooling directory is gone
 a hook prints a message and does nothing instead of failing.
 
+`install-hooks` from a linked worktree refuses in one line and writes nothing (the hooks and `.git/sub0perf/config.json` are shared). With `AUTO`, a configure from a second build directory (local CI's `build-local-*`) leaves the gate on the build directory it already uses while that exists and says which; `ON`, or a hand-run `install-hooks`, takes it over. The gate refuses in one line, naming the fix, when its build directory is missing or belongs to another worktree of the repository, and builds with `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` removed from the environment.
+
 **A tracked hooks directory is never touched.** When `core.hooksPath` points inside the worktree (for example
 `.githooks`), its files are committed and shared, so install-hooks does not rename or overwrite them, and does not add
 files there. Two wirings are valid for the committed `pre-push`, and `selftest` accepts either:

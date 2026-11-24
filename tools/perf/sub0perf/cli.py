@@ -257,6 +257,9 @@ def main():
                              "quick budget, else 90; full has none unless given. 0 = no budget")
     parser.add_argument("--full-refs", action="append", default=[], metavar="PATTERNS",
                         help="install-hooks: comma-separated tag-name patterns whose push selects the full level (default v*,milestone/*)")
+    parser.add_argument("--keep-existing", action="store_true",
+                        help="install-hooks: leave the gate pointing at the build directory it already uses while that one exists "
+                             "(the CMake AUTO mode; an explicit ON or a hand-run install-hooks takes over)")
     parser.add_argument("--quick-budget", type=float, default=None, metavar="SECONDS",
                         help="install-hooks: the quick gate's budget for this repository")
     parser.add_argument("--confirm-rounds", type=int, default=4,

@@ -172,7 +172,10 @@ def check_config(repo, only_target):
             rows.append((FAIL, label, "needs build_dir, exe and baseline"))
             continue
         build, exe, baseline = Path(t["build_dir"]), Path(t["exe"]), Path(t["baseline"])
-        if not build.is_dir():
+        problem = gate.target_problem(repo, t)
+        if build.is_dir() and problem:  # a build directory that belongs to another worktree: the push would measure that code
+            rows.append((FAIL, label, problem))
+        elif not build.is_dir():
             rows.append((WARN, label, f"not built yet: build dir {build} is missing"))
         elif not exe.is_file():
             rows.append((WARN, label, f"not built yet: {exe} is missing"))

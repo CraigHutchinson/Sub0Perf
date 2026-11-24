@@ -230,7 +230,9 @@ function(sub0math_add_benchmark target)
     # Pre-push gate: blocks a push whose benchmarks regressed against the committed baseline or the
     # local record of the commit it started from, unless the regression was accepted (bench_check.py accept).
     set(install_hooks "${SUB0MATH_PERF_GIT_HOOKS}")
+    set(hook_keep "")
     if(install_hooks STREQUAL "AUTO")
+        set(hook_keep --keep-existing)  # AUTO never repoints a gate whose build directory still exists; ON takes it over
         if(NOT DEFINED ENV{CI} AND IS_DIRECTORY "${PROJECT_SOURCE_DIR}/.git" AND EXISTS "${baseline}")
             set(install_hooks ON)
         else()
@@ -254,7 +256,7 @@ function(sub0math_add_benchmark target)
         execute_process(
             COMMAND ${Python3_EXECUTABLE} "${check}" install-hooks --repo "${PROJECT_SOURCE_DIR}" --build-dir "${CMAKE_BINARY_DIR}"
                     --target ${target} --exe "${hook_exe}" --baseline "${baseline}" --config "${hook_config}" ${pin_args}
-                    --full-refs "${SUB0MATH_PERF_FULL_REFS}" --quick-budget ${SUB0MATH_PERF_QUICK_BUDGET}
+                    --full-refs "${SUB0MATH_PERF_FULL_REFS}" --quick-budget ${SUB0MATH_PERF_QUICK_BUDGET} ${hook_keep}
             RESULT_VARIABLE hook_result)
         if(NOT hook_result EQUAL 0)
             message(WARNING "sub0perf: installing the git hooks failed (${hook_result})")
