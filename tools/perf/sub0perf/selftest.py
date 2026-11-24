@@ -276,13 +276,15 @@ def check_decisions(repo, config, d, budget):
         return [(WARN, "gate decisions", "the repository has no commit to push")]
     parent = git(repo, "rev-parse", "HEAD~1") or "1" * 40
     update = f"refs/heads/selftest {head} refs/heads/selftest {parent}\n"
+    new_branch = f"refs/heads/selftest {head} refs/heads/selftest {ZERO}\n"
     delete = f"refs/heads/selftest {ZERO} refs/heads/selftest {parent}\n"
     never = lambda remote, local: (_ for _ in ()).throw(AssertionError("a push with nothing to compare must not diff"))
     rows = []
     for label, text, paths, want in (
             ("empty stdin (up to date)", "", never, "skip-empty"),
             ("deletion only", delete, never, "skip-deletions"),
-            ("docs-only range", update, lambda r, l: ["docs/Guide.md", "README.md", ".ci/local.json"], "skip-docs")):
+            ("docs-only range", update, lambda r, l: ["docs/Guide.md", "README.md", ".ci/local.json"], "skip-docs"),
+            ("docs-only new branch", new_branch, lambda r, l: ["docs/Guide.md", "README.md"], "skip-docs")):
         try:
             code, outcome, _, _ = drive(repo, text, paths, budget)
         except Exception as error:  # a decision that crashes is a failed decision
