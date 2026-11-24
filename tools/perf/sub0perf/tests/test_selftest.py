@@ -291,6 +291,7 @@ class DirectGateWiringTest(TrackedHooksSelftestTest):
 
     def commit_hook(self, text):
         (self.tracked / "pre-push").write_text(text, encoding="utf-8", newline="\n")
+        (self.tracked / "pre-push").chmod(0o755)  # git ignores a hook that is not executable (selftest checks this on POSIX)
         self.install_quietly()
 
     def record_tooling(self, *parts):
