@@ -20,9 +20,9 @@ export SUB0PERF_OUTPUT=brief          # check/auto/gate/compare/metrics print ON
 | 0 | Keep the build you start from | Build on a clean tree: the after-build check keeps it in `.git/sub0perf/bins/T/`. Or `cp <exe> B/perf/prev.exe` | nothing |
 | 1 | Measure where you are | `cmake --build B --target T_check` (it runs `T_runs` first) | one line: `perf: PASS 0 regressed, ...` and a line per row that moved |
 | 2 | Change one thing | edit, `cmake --build B --target T` | compiler output only |
-| 3 | Compare with the previous build | `cmake --build B --target T_compare` (kept build) or `-DSUB0MATH_COMPARE_AGAINST=B/perf/prev.exe` first. Narrow it: `-DSUB0MATH_COMPARE_FILTER="<name>"` | `perf compare: ...` plus a line per row that moved |
+| 3 | Compare with the previous build | `cmake --build B --target T_compare` (kept build) or `-DSUB0PERF_COMPARE_AGAINST=B/perf/prev.exe` first. Narrow it: `-DSUB0PERF_COMPARE_FILTER="<name>"` | `perf compare: ...` plus a line per row that moved |
 | 4 | Keep or reject | see below | |
-| 5 | Record it | from a full steady run: `bench_check.py accept --results B/perf/T.samples.json --baseline perf/baselines/<host>.json --all-changed --reason "<what and why>"`, or `SUB0MATH_PERF_REASON="<why>" cmake --build B --target T_baseline` for the whole baseline | `accepted ...` lines |
+| 5 | Record it | from a full steady run: `bench_check.py accept --results B/perf/T.samples.json --baseline perf/baselines/<host>.json --all-changed --reason "<what and why>"`, or `SUB0PERF_REASON="<why>" cmake --build B --target T_baseline` for the whole baseline | `accepted ...` lines |
 | 6 | Commit the baseline with the change | `git add perf/baselines/<host>.json <the sources>` and commit, saying why | |
 
 `T_compare` is an interleaved A/B (at least 10 rounds, which build goes first flips every round) in this session, so a
@@ -48,7 +48,7 @@ If the change should alter a size, a count or an iteration number, check those e
 
 ```bash
 ctest --test-dir B -L smoke                                   # T_smoke and T_metrics: milliseconds, never timing
-SUB0MATH_PERF_REASON="<why>" cmake --build B --target T_metrics_accept   # a deliberate change of a metric, logged in perf/metrics.json
+SUB0PERF_REASON="<why>" cmake --build B --target T_metrics_accept   # a deliberate change of a metric, logged in perf/metrics.json
 ```
 
 ## Reading the output

@@ -91,6 +91,7 @@ from . import levels, output, platform_proc, plan as planning, power, speed
 from .accept import accept_command, baseline_command
 from .baseline import make_record, write_samples
 from .common import read_json
+from . import envnames
 from .compare import compare_command
 from .confirm import confirm_regressions, noisy_names
 from .gate import choose_benchmarks, gate_command, power_guard
@@ -235,6 +236,7 @@ def measure_and_judge(args):
 
 
 def main():
+    envnames.apply_aliases()  # SUB0PERF_* or the old SUB0MATH_* spelling of every variable, whichever was given
     # Keep the legacy benchmark parser/commands unchanged; workload evidence has its own
     # schema and budgets, reached through the same entry point used by all consumers.
     if sys.argv[1:2] == ["workload"]:

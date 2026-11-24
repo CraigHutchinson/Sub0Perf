@@ -24,7 +24,7 @@ import sys
 import types
 from pathlib import Path
 
-from . import accept, deferral, gate, hooks, levels, plan as planning, power, speed
+from . import accept, deferral, envnames, gate, hooks, levels, plan as planning, power, speed
 from .common import read_json, tooling_script
 from .gitstate import git, git_head, perf_dir
 from .lock import PerfLock
@@ -423,7 +423,8 @@ def check_lock(repo):
 def run_selftest(repo, target=None, budget=None):
     """All rows for `repo`."""
     rows = []
-    environment = [name for name in ("SUB0MATH_PERF_SKIP", "SUB0MATH_PINS_SKIP") if os.environ.get(name)]
+    environment = sorted({new for new, old in envnames.PAIRS if new in ("SUB0PERF_SKIP", "SUB0PERF_PINS_SKIP")
+                          and (os.environ.get(new) or os.environ.get(old))})
     if environment:
         rows.append((WARN, "environment", f"{', '.join(environment)} is set: the real gate would be bypassed (not applied in this test)"))
     rows += check_hook(repo, "pre-push", required=True)

@@ -224,7 +224,7 @@ class LinkedWorktreeTest(RepoTestCase):
         self.assertEqual(len(text.strip().splitlines()), 1)
         self.assertIn("main checkout", text)
         self.assertFalse((gitstate.perf_dir(self.repo) / "config.json").exists())
-        self.assertFalse((Path(gitstate.git(self.repo, "rev-parse", "--git-path", "hooks")) / "pre-push").exists())
+        self.assertFalse((hk.hooks_dir(self.repo) / "pre-push").exists())
         self.assertIsNone(gitstate.git(self.repo, "config", "--get", "core.hooksPath"))
 
     def test_an_absolute_hooks_path_into_the_main_checkout_is_tracked_from_a_linked_worktree(self):
