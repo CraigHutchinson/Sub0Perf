@@ -16,7 +16,8 @@ from .lock import LockTimeout, PerfLock
 from .pins import pin_problems, show_file_at
 from .report import render, report
 from .reproduce import reproduced_against
-from .runner import PowerChanged, list_names, measure_all, probe_cost, probe_unknown, rerunner, set_round_guard
+from .runner import (PowerChanged, list_names, measure_all, probe_cost, probe_unknown, process_cap_for, rerunner, set_process_cap,
+                     set_round_guard)
 from .stats import rounds_needed
 
 
@@ -268,6 +269,7 @@ def run_gate(args, repo, d, config_path, head, clean):
         args.subset = len(chosen) < len(all_names)
         # Measuring time, probing included; the build above does not count.
         budget = planning.Budget(max(args.budget_seconds - probed_s, 0.0) if args.budget_seconds else args.budget_seconds)
+        set_process_cap(lambda n, state=state: process_cap_for(args.budget_seconds, state.get("costs", {}).get(n)) if quick else None)
         samples, meta, positions, counters = measure_all(exe, args, names=chosen, rounds=rounds, timings=timings)
         record = make_record(exe, samples, meta, positions, counters, args.epochs, args.seed, power_now)
         record["level"] = args.level

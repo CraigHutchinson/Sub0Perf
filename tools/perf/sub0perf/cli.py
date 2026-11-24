@@ -101,7 +101,8 @@ from .metrics import accept_metrics_command, metrics_command
 from .lock import LockTimeout, PerfLock
 from .report import report
 from .selftest import selftest_command
-from .runner import PowerChanged, fill_unmeasured, measure_all, rerunner, run_rounds, set_round_guard
+from .runner import (PowerChanged, fill_unmeasured, measure_all, process_cap_for, rerunner, run_rounds, set_process_cap,
+                     set_round_guard)
 from .stats import rounds_needed
 
 
@@ -192,6 +193,7 @@ def measure_and_judge(args):
                                       args.baseline)
         args.subset = len(names) < len(list_names(args.exe, ""))
     budget = planning.Budget(args.budget_seconds if args.level == levels.QUICK else None)
+    set_process_cap(lambda n: process_cap_for(args.budget_seconds, state.get("costs", {}).get(n)) if args.level == levels.QUICK else None)
     samples, meta, positions, counters = measure_all(args.exe, args, names=names, rounds=rounds, timings=timings)
     now = getattr(args, "power_state", None) or power.power_state()  # (`state` above is the coverage state)
     record = make_record(args.exe, samples, meta, positions, counters, args.epochs, args.seed, now)
@@ -254,7 +256,8 @@ def main():
                              "(default v*, milestone/*), then quick")
     parser.add_argument("--budget", type=float, default=None, metavar="SECONDS",
                         help="gate, auto: target seconds of measuring. Quick defaults to SUB0MATH_PERF_BUDGET, the configured "
-                             "quick budget, else 90; full has none unless given. 0 = no budget")
+                             "quick budget, else 90; full has none unless given. 0 = no budget. compare: the most one run may take "
+                             "(default 300; 0 = no limit): without --filter a longer planned run is refused")
     parser.add_argument("--full-refs", action="append", default=[], metavar="PATTERNS",
                         help="install-hooks: comma-separated tag-name patterns whose push selects the full level (default v*,milestone/*)")
     parser.add_argument("--quick-budget", type=float, default=None, metavar="SECONDS",

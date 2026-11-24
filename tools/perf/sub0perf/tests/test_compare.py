@@ -18,7 +18,7 @@ TIMES = {"G, hand-written": 1000.0, "G, vocab": 1000.0, "H, vocab": 700.0}
 def args_for(**kw):
     base = dict(exe="new.exe", against=None, kept=None, repo=None, target="tgt", filter="", rounds=10, tolerance=0.10, pair_tolerance=0.05,
                 max_cv=0.05, absolute=False, instr_tolerance=0.02, epochs=0, max_load=0.2, settle=0.0, seed=1, report_only=False,
-                format="brief", report=None)
+                format="brief", report=None, budget=0)
     base.update(kw)
     return types.SimpleNamespace(**base)
 
@@ -111,6 +111,51 @@ class CompareTest(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(compare.compare_command(args, measure=measuring(TIMES, TIMES), listing=listing(TIMES)), 2)
         self.assertIn("not a file", out.getvalue())
+
+
+class CompareBudgetTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self.new = self.dir / "new.exe"
+        self.old = self.dir / "old.exe"
+        self.new.write_bytes(b"new")
+        self.old.write_bytes(b"old")
+
+    def compare_with_probe(self, probe, **kw):
+        args = args_for(exe=str(self.new), against=str(self.old), **kw)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = compare.compare_command(args, measure=measuring(TIMES, TIMES), listing=listing(TIMES), probe=probe)
+        return code, out.getvalue()
+
+    def test_a_planned_run_over_the_budget_is_refused_with_the_fix(self):
+        code, text = self.compare_with_probe(lambda exe, names, args, allowance, per: ({n: 10.0 for n in names}, {}, 30.0), budget=300.0)
+        self.assertEqual(code, 2)
+        self.assertIn("--filter", text)
+        self.assertIn("--budget", text)
+        self.assertIn("300 s", text)
+
+    def test_a_probe_cut_off_by_its_allowance_also_refuses(self):
+        code, text = self.compare_with_probe(lambda exe, names, args, allowance, per: ({}, {names[0]: allowance}, allowance), budget=300.0)
+        self.assertEqual(code, 2)
+
+    def test_a_run_within_the_budget_goes_ahead(self):
+        code, _ = self.compare_with_probe(lambda exe, names, args, allowance, per: ({n: 0.1 for n in names}, {}, 0.3), budget=300.0)
+        self.assertEqual(code, 0)
+
+    def test_filter_skips_the_check(self):
+        def never(*a):
+            raise AssertionError("probed")
+        code, _ = self.compare_with_probe(never, budget=1.0, filter="vocab")
+        self.assertEqual(code, 0)
+
+    def test_budget_zero_means_no_limit(self):
+        def never(*a):
+            raise AssertionError("probed")
+        code, _ = self.compare_with_probe(never, budget=0)
+        self.assertEqual(code, 0)
 
 
 class KeptBuildTest(RepoTestCase):
