@@ -5,15 +5,15 @@ per-host baselines, a pre-push regression gate, deterministic metrics, an A/B co
 Python (standard library only) and CMake; the runner is one C++ header on top of the vendored
 [nanobench](https://github.com/martinus/nanobench).
 
-It was extracted from Sub0Math with every name kept (`sub0math_*` CMake functions, `SUB0MATH_*` variables,
-`sub0math_tooling_dir.txt`); renaming to `sub0perf_*` / `SUB0PERF_*` is a later, separate change.
+It was extracted from Sub0Math, and its CMake functions and variables are `sub0perf_*` / `SUB0PERF_*`. The old
+`sub0math_*` / `SUB0MATH_*` names still work for one release (docs/PERFORMANCE.md, "Names").
 
 ## Use
 
 ```cmake
 CPMAddPackage(NAME Sub0Perf GITHUB_REPOSITORY CraigHutchinson/Sub0Perf GIT_TAG <commit-sha>)
 include("${Sub0Perf_SOURCE_DIR}/cmake/Sub0Perf.cmake")
-sub0math_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
+sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
 ```
 
 See [examples/bench_sample.cpp](examples/bench_sample.cpp) and [docs/PERFORMANCE.md](docs/PERFORMANCE.md) (timing budgets,

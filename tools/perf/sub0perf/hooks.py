@@ -80,7 +80,8 @@ def chain_line(name):
 
 
 GATE_CALL_RE = re.compile(r'bench_check\.py"?\s+gate\b')
-TOOLING_RECORD = "sub0math_tooling_dir.txt"  # written by the configure step into the build directory: the tooling's location
+TOOLING_RECORD = "sub0perf_tooling_dir.txt"  # written by the configure step into the build directory: the tooling's location
+OLD_TOOLING_RECORD = "sub0math_tooling_dir.txt"  # the name before the rename; still written, and read, for one release
 TOOLING_ENV = "SUB0PERF_TOOLING_DIR"  # overrides the record
 
 
@@ -96,7 +97,8 @@ def tooling_dirs(repo, environ=None):
     `build/*/` (a preset's build directory is build/<preset>)."""
     environ = os.environ if environ is None else environ
     found = [Path(environ[TOOLING_ENV].strip())] if environ.get(TOOLING_ENV, "").strip() else []
-    records = {p for pattern in (f"build*/{TOOLING_RECORD}", f"build/*/{TOOLING_RECORD}") for p in Path(repo).glob(pattern)}
+    records = {p for name in (TOOLING_RECORD, OLD_TOOLING_RECORD) for pattern in (f"build*/{name}", f"build/*/{name}")
+               for p in Path(repo).glob(pattern)}
     for record in sorted(records, key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             found.append(Path(record.read_text(encoding="utf-8").strip()))

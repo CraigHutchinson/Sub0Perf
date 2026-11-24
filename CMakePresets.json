@@ -8,7 +8,7 @@
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "SUB0MATH_PERF_ON_BUILD": "OFF"
+                "SUB0PERF_ON_BUILD": "OFF"
             }
         }
     ],

@@ -5,12 +5,18 @@ benchmarks gets the same benchmark runner, budgets, gate and profiler targets:
 
 ```cmake
 include("${Sub0Perf_SOURCE_DIR}/cmake/Sub0Perf.cmake")      # after CPMAddPackage(NAME Sub0Perf ...)
-sub0math_target_perf_options(MyLibrary)                       # profile / vectorization / native options
-sub0math_add_benchmark(MyLibrary_Bench bench_my_library.cpp)    # plus _json/_check/_baseline/_compare/_vtune_*/...
+sub0perf_target_perf_options(MyLibrary)                       # profile / vectorization / native options
+sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp)    # plus _json/_check/_baseline/_compare/_vtune_*/...
 ```
 
-The function and variable names keep their `sub0math_` / `SUB0MATH_` prefix for now (the tooling moved out of Sub0Math
-unchanged; renaming is a later change). Configuring writes the scripts' location to `<build>/sub0math_tooling_dir.txt`, so
+**Names.** The CMake functions are `sub0perf_add_benchmark`, `sub0perf_target_perf_options`, `sub0perf_add_test` and
+`sub0perf_label_full_tests`; the variables are `SUB0PERF_*` (`SUB0MATH_PERF_X` became `SUB0PERF_X`, and every other `SUB0MATH_Y` became
+`SUB0PERF_Y`: `SUB0PERF_ON_BUILD`, `SUB0PERF_GIT_HOOKS`, `SUB0PERF_QUICK_BUDGET`, `SUB0PERF_HOST`, `SUB0PERF_SKIP`,
+`SUB0PERF_COMPARE_AGAINST`, `SUB0PERF_PROFILE_FILTER`, and so on). For one release the old names still work: the old functions forward
+with a CMake `DEPRECATION` message, an old CMake variable is used when its new name is not given (the new name wins; in a build directory
+that already holds a default for the new name, pass the new name or `-U` it), an old environment variable is read when its new name is
+not set (silently), and the tooling record is written under both `sub0perf_tooling_dir.txt` and `sub0math_tooling_dir.txt`. Variables
+that belong to Sub0Math itself (`SUB0MATH_BUILD_BENCHMARKS`) are unchanged. Configuring writes the scripts' location to `<build>/sub0perf_tooling_dir.txt`, so
 shells and CI can run them without knowing where CPM put Sub0Perf. Benchmarks include `<bench_runner.hpp>` and accept
 `--filter` (case-insensitive substring), `--json`, `--soak <seconds>` (loop under a profiler) and `--list`.
 
@@ -23,7 +29,7 @@ cmake --build --preset default --target MyLibrary_Bench_baseline   # record this
 
 **Implicit after every rebuild.** A benchmark executable relinks only when its code, or a header it
 uses, has changed. When it does, a quick-level check runs straight after the build (3 rounds at the
-same epochs as baselines, so absolute times compare like for like, within the quick time budget; see [Levels](#levels-time-budget-and-coverage)) and prints regressions and progressions. `SUB0MATH_PERF_ON_BUILD` controls this:
+same epochs as baselines, so absolute times compare like for like, within the quick time budget; see [Levels](#levels-time-budget-and-coverage)) and prints regressions and progressions. `SUB0PERF_ON_BUILD` controls this:
 
 | Value | Effect |
 |---|---|
@@ -78,15 +84,15 @@ per push**: a benchmark that was not measured this push, or stayed inconclusive,
 **Which level runs** (the first that applies, reported with its reason on the first line of the gate output):
 
 1. `--level quick|full` on the command line;
-2. the environment variable `SUB0MATH_PERF_LEVEL=quick|full`;
+2. the environment variable `SUB0PERF_LEVEL=quick|full`;
 3. the pushed refs: a push that includes a **tag** whose name matches one of the full-ref patterns runs
    full. Defaults `v*` and `milestone/*` (so `v1.2.0`, `milestone/M2`); change them with the CMake list
-   `SUB0MATH_PERF_FULL_REFS` or `bench_check.py install-hooks --full-refs "rel-*,v*"` (stored as `full_refs`
+   `SUB0PERF_FULL_REFS` or `bench_check.py install-hooks --full-refs "rel-*,v*"` (stored as `full_refs`
    in `.git/sub0perf/config.json`). Branch names and deletions never match;
 4. otherwise quick.
 
-**The budget** is `--budget SECONDS`, else `SUB0MATH_PERF_BUDGET`, else (quick only) the configured value,
-else 90. CMake sets the configured value with `SUB0MATH_PERF_QUICK_BUDGET` (stored as `quick_budget`; the
+**The budget** is `--budget SECONDS`, else `SUB0PERF_BUDGET`, else (quick only) the configured value,
+else 90. CMake sets the configured value with `SUB0PERF_QUICK_BUDGET` (stored as `quick_budget`; the
 after-build check gets it as `--budget`). `0` means no budget. Full has none unless one is given. It counts
 measuring time: the build before it does not count.
 
@@ -137,7 +143,7 @@ A run that measured a subset judges against the same baseline: benchmarks it did
 branch), run the full level and read its output:
 
 ```bash
-SUB0MATH_PERF_LEVEL=full git push          # or: git push origin v1.2.0 / milestone/M3 (a matching tag selects full)
+SUB0PERF_LEVEL=full git push          # or: git push origin v1.2.0 / milestone/M3 (a matching tag selects full)
 python tools/perf/bench_check.py gate --level full      # by hand, without pushing
 ```
 
@@ -152,9 +158,9 @@ everyday run excludes it and milestones and CI run everything:
 
 ```cmake
 include("${Sub0Perf_SOURCE_DIR}/cmake/Sub0Perf.cmake")
-sub0math_add_test(MyLib_Tests COMMAND MyLib_Tests)                 # quick: runs every day
-sub0math_add_test(MyLib_Soak FULL COMMAND MyLib_Soak --long)       # full: milestones and CI
-sub0math_label_full_tests(MyLib_Other)                             # label a test that already exists
+sub0perf_add_test(MyLib_Tests COMMAND MyLib_Tests)                 # quick: runs every day
+sub0perf_add_test(MyLib_Soak FULL COMMAND MyLib_Soak --long)       # full: milestones and CI
+sub0perf_label_full_tests(MyLib_Other)                             # label a test that already exists
 doctest_discover_tests(MyLib_Long ADD_LABELS 1 TEST_SUFFIX " [full]")  # discovery macros: use their own LABELS option
 gtest_discover_tests(MyLib_Long PROPERTIES LABELS full)
 ```
@@ -182,13 +188,13 @@ It prints a table of PASS, WARN and FAIL rows and exits 1 on any FAIL. Consumers
 
 | Check | Passes when |
 |---|---|
-| `hook pre-push`, `hook post-checkout` | The hook is in the directory git looks in (`core.hooksPath` honoured), is a sub0perf hook, calls an existing `bench_check.py` and an existing python, and is byte-identical to what `install-hooks` writes for this tooling. Other python or script paths with the same logic are a WARN; a changed hook is a FAIL (drift: re-run `install-hooks`). In a tracked hooks directory, or under `SUB0MATH_PERF_HOOK_MODE=chain`, the committed hook must either carry the one chaining line (and `.git/sub0perf/hooks/<hook>` must match) or run `bench_check.py gate --refs-from-stdin` itself, the shared `templates/pre-push` stanza (PASS; WARN without `--refs-from-stdin`, or while no tooling record exists yet; FAIL for a literal path that does not exist). Neither is a FAIL, with both wirings named, and the chaining line to add |
+| `hook pre-push`, `hook post-checkout` | The hook is in the directory git looks in (`core.hooksPath` honoured), is a sub0perf hook, calls an existing `bench_check.py` and an existing python, and is byte-identical to what `install-hooks` writes for this tooling. Other python or script paths with the same logic are a WARN; a changed hook is a FAIL (drift: re-run `install-hooks`). In a tracked hooks directory, or under `SUB0PERF_HOOK_MODE=chain`, the committed hook must either carry the one chaining line (and `.git/sub0perf/hooks/<hook>` must match) or run `bench_check.py gate --refs-from-stdin` itself, the shared `templates/pre-push` stanza (PASS; WARN without `--refs-from-stdin`, or while no tooling record exists yet; FAIL for a literal path that does not exist). Neither is a FAIL, with both wirings named, and the chaining line to add |
 | `config`, `target <name>`, `baseline` | `.git/sub0perf/config.json` parses; the baseline exists and has benchmarks. A missing build dir or executable is a WARN ("not built yet") |
 | `pin <name>`, `config full_refs/quick_budget` | Pin entries have file and var and repo or checkout, the file exists and its `set(VAR <sha>)` parses; settings have the right type |
 | `gate: empty stdin`, `deletion only`, `docs-only range`, `docs-only new branch` | The real `gate_command` skips each, with synthetic refs |
 | `gate: code range` | The gate plans a measuring run, and the quick plan's predicted seconds plus the probe allowance (a fifth of the budget while any benchmark has no recorded cost) fit the budget, from the repository's real coverage state |
 | `coverage <name>` | Always reported: benchmarks with no recorded cost (unknown), probed too slow (full level only), groups deferred, pushes to cover every group, the stalest group. A WARN while any is unknown or slow |
-| `gate power: ...` | With the power state faked (`SUB0PERF_FAKE_POWER`): battery and a battery saver defer, strict mode fails, `SUB0MATH_PERF_ON_BATTERY=1` and unknown power measure; each deferral names the override |
+| `gate power: ...` | With the power state faked (`SUB0PERF_FAKE_POWER`): battery and a battery saver defer, strict mode fails, `SUB0PERF_ON_BATTERY=1` and unknown power measure; each deferral names the override |
 | `baseline power: ...` | Mains, old (no field) and unknown records may become a baseline; battery and override runs may not |
 | `power now` | Always reported; a WARN on battery ("the gate would defer, measuring nothing") |
 | `lock` | No stale `.git/sub0perf/lock` (a live one is a WARN) |
@@ -196,7 +202,7 @@ It prints a table of PASS, WARN and FAIL rows and exits 1 on any FAIL. Consumers
 The decisions are the gate's own code, not a copy: `gate_command` has a **plan-only mode** (`args.plan_only`) that
 takes every decision up to the point where it would take the lock and build, then stops, recording why in
 `args.outcome` and the quick plan per target in `args.previews`. It does not run the pins' network check, write the
-log, or care about a dirty tree or `SUB0MATH_PERF_SKIP`, and `args.changed_paths` replaces the git diff of the pushed
+log, or care about a dirty tree or `SUB0PERF_SKIP`, and `args.changed_paths` replaces the git diff of the pushed
 range (the selftest injects a docs-only list and a code list). The benchmark names come from the baseline and the
 coverage state, since listing them would run the benchmark executable. `choose_benchmarks` and the preview share
 `make_quick_plan`, so the plan is the one a real quick gate makes.
@@ -215,10 +221,10 @@ the switches in effect (exit 3 on battery).
   The baseline and the coverage state are not touched, so the stalest-first rotation resumes where it stopped. The pushed
   ranges go to `.git/sub0perf/deferred.json`; the next gate on mains lists them, and if it blocks it says the regression
   may come from any of them. They are cleared by a clean measurement on mains. Nothing maps a changed file to the
-  benchmarks it affects, so deferred pushes do not reorder the rotation. `SUB0MATH_PERF_LEVEL=full` covers everything.
-- **Strict.** `SUB0MATH_PERF_POWER_STRICT=1`, or `"strict_power": true` in `.git/sub0perf/config.json`, refuses the push
+  benchmarks it affects, so deferred pushes do not reorder the rotation. `SUB0PERF_LEVEL=full` covers everything.
+- **Strict.** `SUB0PERF_POWER_STRICT=1`, or `"strict_power": true` in `.git/sub0perf/config.json`, refuses the push
   instead (exit 1). Off by default.
-- **Override.** `SUB0MATH_PERF_ON_BATTERY=1` measures anyway. The first line of the run and the last line of the summary say
+- **Override.** `SUB0PERF_ON_BATTERY=1` measures anyway. The first line of the run and the last line of the summary say
   so, the record carries `"power": {"state": "battery", ...}` and `"power_override": true`, the report shows it, and such a
   record can never become a baseline. Set on mains it is reported as "set but ignored (on mains)", so a stale export is noticed.
 - **Mid-run.** Power is checked before every round (including confirmation rounds). A switch to battery stops the run: the
@@ -249,7 +255,7 @@ everything. `sub0perf/speed.py` catches it first:
   "Best power efficiency" (overlay `961cc777-2547-4f9d-8174-7d86181b8a7a`) every core held boost for about 3 s of load and then fell
   to about 0.42x (P-cores) and 0.33x (E-cores): every rolling-cost test of a consumer library read 2.4x slower while the 0.3 s kernel read
   0.97x and the check passed. The check therefore also takes a **sustained** reading: `--calibration --soak <s>` runs the kernel
-  continuously in one process for `warm_seconds` (default 4.5 s; `SUB0MATH_PERF_WARM_SECONDS` or `"warm_seconds"` in the config;
+  continuously in one process for `warm_seconds` (default 4.5 s; `SUB0PERF_WARM_SECONDS` or `"warm_seconds"` in the config;
   0 = burst only) and reports the median of the last quarter. It must be one process (the slowdown does not carry into a new one;
   15 short readings back to back all read 1.00x, a single long process read 2.4x). The gate acts on the slower of the burst and
   sustained ratios. The sustained reading is compared with `calibration_sustained_ns` in the baseline, which `sub0perf run` records
@@ -262,12 +268,12 @@ everything. `sub0perf/speed.py` catches it first:
   under `HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes`, read only): `bench_check.py power` prints both
   ("power mode Best power efficiency (mains) / Best power efficiency (battery)"), records carry them as `power.mode`, and a throttled
   machine in "Best power efficiency" is told to set Balanced or Best performance. sub0perf never changes a setting.
-- **Limit.** Slower than 1.4x is `throttled` (`SUB0MATH_PERF_THROTTLE_RATIO`, or `"throttle_ratio"` in
+- **Limit.** Slower than 1.4x is `throttled` (`SUB0PERF_THROTTLE_RATIO`, or `"throttle_ratio"` in
   `.git/sub0perf/config.json`). The default comes from the 32 local records of the reference host: the median calibration of a
   run stays within 0.97x..1.29x of the baseline's (the high end overlapped other load), while a machine pinned at base clock
   reads about 1.9x. Raise it for a host whose normal spread is wider; do not lower it below the spread of your own records.
 - **Handling.** Exactly as battery: deferral (exit 0, the range goes to `deferred.json`), strict mode refuses, and
-  `SUB0MATH_PERF_ON_BATTERY=1` measures anyway. The switch keeps its published name and covers both states. The message gives
+  `SUB0PERF_ON_BATTERY=1` measures anyway. The switch keeps its published name and covers both states. The message gives
   the ratio and the likely causes (vendor power mode, charging cap, thermal). An override run is flagged (`power.throttled`,
   `power_override`) and can never become a baseline; a throttled record that was not an override (a run made by hand) needs
   `--force-power`, like battery. A record whose throttled flag differs from the baseline's judges absolute verdicts as
@@ -285,7 +291,7 @@ everything. `sub0perf/speed.py` catches it first:
 
 ### Pre-push gate and explicit acceptance
 
-Configuring a repository that builds benchmarks installs two git hooks when `SUB0MATH_PERF_GIT_HOOKS` allows it: `AUTO` (the
+Configuring a repository that builds benchmarks installs two git hooks when `SUB0PERF_GIT_HOOKS` allows it: `AUTO` (the
 default) installs them only from the main checkout (a linked worktree has a `.git` file and shares the main checkout's hooks and
 configuration), where `perf/baselines/<host>.json` exists (`<host>` as below, also read from the environment variable of the
 same name), and never on CI; `ON` installs wherever a `.git` exists, `OFF` never. A hook that is not ours is never overwritten: it is renamed to
@@ -302,10 +308,10 @@ files there. Two wirings are valid for the committed `pre-push`, and `selftest` 
 1. **The hook runs the gate itself.** A hand-written hook that reads the pushed refs from stdin (a loop over `read`, as the shared
    `templates/pre-push` of the `.github` repository does to skip documentation-only pushes) and runs
    `bench_check.py gate --refs-from-stdin` with them: the template's commented perf stanza, which finds the tooling in
-   `SUB0PERF_TOOLING_DIR` or the newest `<build>/sub0math_tooling_dir.txt` under `build*/` and `build/*/` (a preset's build
+   `SUB0PERF_TOOLING_DIR` or the newest `<build>/sub0perf_tooling_dir.txt` under `build*/` and `build/*/` (a preset's build
    directory is `build/<preset>`). This is the wiring for a hook that reads stdin, because stdin can be read once.
 2. **The chain line.** For a committed hook that does not read stdin itself, or for an untracked `.git/hooks` under
-   `SUB0MATH_PERF_HOOK_MODE=chain`. Our hooks are kept in `.git/sub0perf/hooks/<hook>` (never tracked) and install-hooks prints
+   `SUB0PERF_HOOK_MODE=chain`. Our hooks are kept in `.git/sub0perf/hooks/<hook>` (never tracked) and install-hooks prints
    the one line to add to the committed hook, before anything reads stdin. Do not add it to a hook of the first kind: the
    chained copy reads all of stdin first, and the hook's own loop then sees no refs. install-hooks prints nothing for a
    committed `pre-push` that already runs the gate itself.
@@ -316,7 +322,7 @@ The chain line:
 [ ! -f "$(git rev-parse --path-format=absolute --git-common-dir)/sub0perf/hooks/pre-push" ] || sh "$(git rev-parse --path-format=absolute --git-common-dir)/sub0perf/hooks/pre-push" "$@" || exit $?
 ```
 
-It prints nothing once the line is there. `SUB0MATH_PERF_HOOK_MODE=chain` does the same for an ordinary `.git/hooks`: nothing is
+It prints nothing once the line is there. `SUB0PERF_HOOK_MODE=chain` does the same for an ordinary `.git/hooks`: nothing is
 written into git's hooks directory, and the line is printed. `install` (the default) keeps the rename-to-`.user` behaviour for
 an untracked hooks directory. `selftest` checks the line and the chained copy (see below).
 
@@ -369,14 +375,14 @@ an untracked hooks directory. `selftest` checks the line and the chained copy (s
   cannot interleave and disturb each other's timing. A second run waits (`--lock-timeout`, default
   900 s) and then gives up. A lock whose process has gone, or older than six hours, is taken over.
 
-  **Bypass.** `SUB0MATH_PERF_SKIP=<reason> git push` skips the gate; the reason is printed and logged
+  **Bypass.** `SUB0PERF_SKIP=<reason> git push` skips the gate; the reason is printed and logged
   as a `skip` event. (The gate's own build sets it internally so the after-build check does not run.)
 
   **Dependency pins.** A repository that pins a dependency by commit (`set(X_REVISION <sha>)` read by
   `CPMAddPackage(... GIT_TAG ${X_REVISION})`) must not push the pin before the dependency itself: CI
   then fails to fetch it ("unable to read tree"). Pins are declared at hook install, generically, as
   `install-hooks --pin file=cmake/Dependencies.cmake,var=X_REVISION,repo=owner/name[,checkout=../X][,name=X]`
-  (repeatable; from CMake, the list `SUB0MATH_PERF_PINS`) and kept under `pins` in
+  (repeatable; from CMake, the list `SUB0PERF_PINS`) and kept under `pins` in
   `.git/sub0perf/config.json`. When the pushed range changes the pin file (a new branch, whose range is
   unknown, counts), the sha is read from the pushed commit and looked up: `gh api repos/<owner>/<repo>/commits/<sha>`
   when `gh` is available (404/422 means absent), otherwise the sibling checkout's remote-tracking refs
@@ -384,7 +390,7 @@ an untracked hooks directory. `selftest` checks the line and the chained copy (s
   `push <name> first`. Unverifiable (offline, no `gh`, commit not in the checkout): a WARNING, the push
   goes on. A range that leaves the pin file alone, such as a documentation-only push, is not checked,
   which keeps the check free. It runs before the performance gate and is **not** bypassed by
-  `SUB0MATH_PERF_SKIP`; `SUB0MATH_PINS_SKIP=<reason>` bypasses it, logged as `pins-skip`.
+  `SUB0PERF_SKIP`; `SUB0PERF_PINS_SKIP=<reason>` bypasses it, logged as `pins-skip`.
 
   Records (`.git/sub0perf/records/...`), samples files and baselines are written atomically (temp
   file, then replace), and records keep the shuffle `seed` of their rounds.
@@ -407,7 +413,7 @@ an untracked hooks directory. `selftest` checks the line and the chained copy (s
 ### Tooling layout
 
 `tools/perf/bench_check.py` is a thin shim with the command line below, so consumers (which find it
-through `sub0math_tooling_dir.txt`) and installed git hooks (which call `bench_check.py gate
+through `sub0perf_tooling_dir.txt`) and installed git hooks (which call `bench_check.py gate
 --refs-from-stdin` by path) are unaffected by the internals. The code is the `tools/perf/sub0perf`
 package, lowest layer first:
 
@@ -423,7 +429,7 @@ package, lowest layer first:
 | `runner` | One process per benchmark, interleaved calibrated rounds, `extend_rounds`, `measure_all`, `rerunner` |
 | `judge` | Verdicts for benchmarks, pairs and counters, environment controls, method mismatch; `evaluate`, `verdict_hits` |
 | `confirm` | Confirming regressions, retrying inconclusive results |
-| `levels` | Which level (quick or full) and budget a run has: `--level`, `SUB0MATH_PERF_LEVEL`, pushed milestone tags |
+| `levels` | Which level (quick or full) and budget a run has: `--level`, `SUB0PERF_LEVEL`, pushed milestone tags |
 | `plan` | The quick-level planner: pairs and controls always, rotation by staleness, coverage state, the time `Budget` |
 | `reproduce` | Measuring an earlier record's kept build beside the new one to reproduce a difference from the record |
 | `compare` | The `compare` command: interleaved A/B of two builds (two executables, or a kept build), at least 10 rounds |
@@ -461,17 +467,17 @@ The gate then lets a regression through against the earlier record only if an ac
 benchmark was added since that commit (read from the baseline committed at HEAD, not the working tree). `--all-changed` accepts every regressed or improved benchmark.
 Re-recording a whole baseline also requires a reason once a baseline exists, and is logged the same
 way: `bench_check.py baseline --reason "..."`, or
-`SUB0MATH_PERF_REASON="..." cmake --build build --target <target>_baseline`. `git push --no-verify` bypasses the hook, as with
+`SUB0PERF_REASON="..." cmake --build build --target <target>_baseline`. `git push --no-verify` bypasses the hook, as with
 any git hook; the baseline log is the record that should explain why.
 
 Baselines live in `perf/baselines/<host>.json`: median, spread and rounds per benchmark, calibration
 time, and pair ratios. Timings from one machine say nothing about another, so each host has its own.
-`<host>` is `SUB0MATH_PERF_HOST` (a CMake cache variable, default the lower-cased host name), and the `"host"` field of the
+`<host>` is `SUB0PERF_HOST` (a CMake cache variable, default the lower-cased host name), and the `"host"` field of the
 baseline and of the records carries that name, not the machine's own; the build targets pass it to the tooling as the
 environment variable of the same name, which a shell can set too.
 Baselines in the older format (a number per benchmark) are still read, judged against the suite's
 median drift, and should be re-recorded. A library's CI should not time anything: it builds with
-`-DSUB0MATH_BUILD_BENCHMARKS=OFF` (and `SUB0MATH_PERF_ON_BUILD=OFF`, `SUB0MATH_PERF_GIT_HOOKS=OFF`), because shared
+`-DSUB0MATH_BUILD_BENCHMARKS=OFF` (and `SUB0PERF_ON_BUILD=OFF`, `SUB0PERF_GIT_HOOKS=OFF`), because shared
 runners are too noisy, and runs the tooling's own Python tests (`python -m unittest discover -s tools/perf`).
 Timing is the local gate's job. What may run anywhere is the deterministic part: the `<target>_smoke` and
 `<target>_metrics` ctest tests (label `smoke`), which never time ([Deterministic metrics](#deterministic-metrics)).
@@ -527,12 +533,12 @@ to review is the change. (If a layout cannot be followed the file is rewritten i
 with the change.
 
 ```cmake
-sub0math_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
+sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
 ```
 
 `SMOKE_TEST` registers ctest test `<target>_smoke`; `METRICS <spec>` (relative to the project root) registers
-`<target>_metrics` and the target `<target>_metrics_accept` (reason in `SUB0MATH_PERF_REASON`; failing and new metrics, never an
-xfail one, unless `-DSUB0MATH_ACCEPT_METRIC="name;name"` names the metrics, which also clears their `xfail`). Both tests carry the
+`<target>_metrics` and the target `<target>_metrics_accept` (reason in `SUB0PERF_REASON`; failing and new metrics, never an
+xfail one, unless `-DSUB0PERF_ACCEPT_METRIC="name;name"` names the metrics, which also clears their `xfail`). Both tests carry the
 label `smoke` and never time, so `ctest` and CI may run them: a layout or iteration-count regression is then a red test,
 and a benchmark that crashes is caught without a timing machine. The sample benchmark in `examples/` shows it.
 
@@ -592,8 +598,8 @@ cmake --build build --target <target>_compare                                   
 
 A build is kept (`.git/sub0perf/bins/<target>/<commit>/`, the newest three) whenever a clean tree is measured by the
 after-build check (`--record`) or the gate. `--filter` keeps whole groups, so a pair keeps its hand-written reference.
-REGRESSED means the new build is slower than the old one. CMake: `SUB0MATH_COMPARE_AGAINST=<exe>` and
-`SUB0MATH_COMPARE_FILTER=<text>` replace the kept build and add a filter.
+REGRESSED means the new build is slower than the old one. CMake: `SUB0PERF_COMPARE_AGAINST=<exe>` and
+`SUB0PERF_COMPARE_FILTER=<text>` replace the kept build and add a filter.
 
 **Bounded, visible runs.** `compare`, `gate` and `auto` print one progress line per round on stderr (round n/N, rows, ETA); stdout stays the output contract. `compare --budget SECONDS` (default 300, 0 = no limit): without `--filter`, a run whose probe-costed estimate exceeds it is refused with the estimate and the `--filter` / `--budget` to use. Every benchmark process has a wall-clock cap, a tenth of the budget or 3x the row's recorded cost, whichever is larger (quick level and `compare`; a full run has none): a row that hits it is killed, dropped from the run, and listed as `TIMEOUT` in the outcome's `changed[]` with a `next_action`; it never blocks. This is also what stops a row whose timed body is empty (about 1 ns, iteration scaling never converges). `BenchRunner::setup(name, fn)` registers a one-shot, untimed setup that runs only in a process that runs that row, so a large input is no longer built by every process of every round.
 
@@ -602,7 +608,7 @@ REGRESSED means the new build is slower than the old one. CMake: `SUB0MATH_COMPA
 Build with the `profile` preset (optimised, debug info, frame pointers), then:
 
 ```bash
-cmake --preset profile -DSUB0MATH_PROFILE_FILTER="rotate" -DSUB0MATH_PROFILE_SECONDS=5
+cmake --preset profile -DSUB0PERF_PROFILE_FILTER="rotate" -DSUB0PERF_PROFILE_SECONDS=5
 cmake --build --preset profile --target MyLibrary_Bench_vtune_hotspots    # where time goes
 cmake --build --preset profile --target MyLibrary_Bench_vtune_uarch       # why: front/back-end, ports, memory
 cmake --build --preset profile --target MyLibrary_Bench_advisor_roofline  # vectorization and roofline

@@ -39,5 +39,5 @@ jobs:
     with:
       apt-packages: g++-14 ninja-build ccache
       cpm-cache-key-files: CMakeLists.txt cmake/Sub0Perf.cmake
-      extra-cmake-args: -DSUB0MATH_PERF_ON_BUILD=OFF
+      extra-cmake-args: -DSUB0PERF_ON_BUILD=OFF
     permissions: { contents: read, statuses: write, actions: read, pull-requests: read, checks: read }

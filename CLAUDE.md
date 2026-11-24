@@ -14,7 +14,7 @@ Tests run in local CI (`local_ci.py --level quick` from the `.github` repository
 
 ## Commit Rules
 
-- A change to a `sub0math_*` function, a `SUB0MATH_*` variable, a command line, a JSON schema or `bench_runner.hpp` says
+- A change to a `sub0perf_*` function, a `SUB0PERF_*` variable, a command line, a JSON schema or `bench_runner.hpp` says
   which consumers it affects.
 - Tests pass locally before committing. Public repository: generic names only, run `private_names.py`.
 
