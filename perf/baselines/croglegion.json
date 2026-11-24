@@ -1,0 +1,44 @@
+{
+  "format": 2,
+  "host": "croglegion",
+  "machine": "AMD64",
+  "system": "Windows 11",
+  "note": "Medians per op after calibration scaling, with robust CV across interleaved rounds. Regenerate deliberately; say why in the commit. Regressions are accepted with `accept`.",
+  "power": {
+    "state": "ac",
+    "saver": false,
+    "scheme": "Balanced",
+    "mode": {
+      "ac": "Balanced",
+      "dc": "Balanced"
+    }
+  },
+  "calibration_ns": 5090.918,
+  "calibration_sustained_ns": 4878.8,
+  "epochs": 0,
+  "cpu": 23,
+  "benchmarks": {
+    "running sum, std::accumulate": {
+      "median_ns": 389.297,
+      "cv": 0.0507,
+      "rounds": 5
+    },
+    "sum of squares, hand-written loop": {
+      "median_ns": 396.864,
+      "cv": 0.0219,
+      "rounds": 5
+    },
+    "sum of squares, std::inner_product": {
+      "median_ns": 395.433,
+      "cv": 0.0368,
+      "rounds": 5
+    }
+  },
+  "pairs": {
+    "sum of squares, std::inner_product": {
+      "reference": "sum of squares, hand-written loop",
+      "ratio": 0.9738
+    }
+  },
+  "accepted": []
+}

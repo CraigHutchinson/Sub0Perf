@@ -7,11 +7,8 @@ endif()
 
 project(Sub0Perf VERSION 0.1.0 LANGUAGES CXX)
 
-# No git hooks in this repository: it has no timing gate of its own. Consumers choose for themselves.
-if(NOT IS_SUBPROJECT)
-    set(SUB0MATH_PERF_GIT_HOOKS OFF CACHE BOOL "Install the pre-push performance gate in this repository's git hooks" FORCE)
-endif()
-
+# The pre-push hook is installed when configuring (off on CI), so this repository's selftest has a hook to check;
+# there is no baseline here, so the gate has nothing to time.
 include(cmake/Sub0Perf.cmake)
 
 # A sample benchmark exercises the module end to end: smoke and metrics ctest tests, no timing in CI.

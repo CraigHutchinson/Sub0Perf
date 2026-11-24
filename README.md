@@ -30,6 +30,8 @@ python tools/perf/bench_check.py selftest --repo .
 ```
 
 Timing is never measured in CI: shared runners are too noisy. The gate runs locally, in each consumer's pre-push hook.
+This repository dogfoods it on the sample benchmark: configuring installs the pre-push hook (not on CI) and
+`perf/baselines/<host>.json` is the sample's baseline for the recording host, so `selftest` has something to check.
 
 ## Licence
 
