@@ -1,12 +1,13 @@
 """The pre-push gate: refuse a push that is not what was built, measure HEAD, block on regressions that persist."""
 
+from contextlib import nullcontext
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 from .baseline import baseline_data, make_record
-from . import deferral, levels, plan as planning, power, speed
+from . import deferral, levels, machine, plan as planning, power, speed
 from .common import REFERENCE_MARK, group_of, read_json, tooling_script
 from .confirm import confirm_regressions, inconclusive_in, retry_inconclusive
 from .gitstate import (ZERO_SHA_CHARS, accepted_since, changed_paths_between, documentation_only, foreign_worktree, git, git_head, log_event,
@@ -110,9 +111,31 @@ def gate_command(args):
             log({"event": "skip", "commit": head, "reason": "documentation only"})
             args.outcome = "skip-docs"
             return 0
+    pre_push = getattr(args, "refs_from_stdin", False)
+    try:
+        held = (nullcontext() if plan_only else machine.take("pre-push gate" if pre_push else "gate",
+                                                           no_wait=getattr(args, "no_wait", False), pre_push=pre_push))
+    except machine.Busy as error:
+        defer = pre_push and os.environ.get("SUB0PERF_LEASE_STRICT") != "1"
+        if defer:
+            try:
+                deferral.add(d, head, refs, f"machine lease: {error}")
+            except (OSError, machine.Unavailable) as write_error:
+                return machine.report_unavailable(f"cannot record deferred push ({write_error})")
+        log({"event": "lease-deferred" if defer else "lease-refused", "commit": head, "blocked": error.blocked(defer)})
+        return machine.report_blocked(args, error, deferred=defer)
+    except machine.Unavailable as error:
+        return machine.report_unavailable(error)
+    with held:
+        return gate_with_lease(args, repo, d, config, config_path, head, clean, refs, plan_only, log)
+
+
+def gate_with_lease(args, repo, d, config, config_path, head, clean, refs, plan_only, log):
     pol, state = power.policy(config=config), power.power_state()
-    if not state.untrusted:  # battery defers anyway; a throttled mains machine is found by timing the calibration kernel, before any build
-        found = speed.check_targets([(name, t["exe"], t["baseline"]) for name, t in config.get("targets", {}).items()], config=config)
+    if not state.untrusted:
+        # Decision tests may inject speed ratios. Only an actual lease holder can probe executables.
+        targets = [] if plan_only else [(name, t["exe"], t["baseline"]) for name, t in config.get("targets", {}).items()]
+        found = speed.check_targets(targets, config=config)
         for note in found.notes:
             print(note)
         state = power.with_speed(state, found.ratio, found.limit, found.sustained)
@@ -134,7 +157,7 @@ def gate_command(args):
     if not pol.override:
         set_round_guard(power_guard)
     try:
-        with PerfLock(repo, "gate", args.lock_timeout):
+        with PerfLock(repo, "gate", 0 if getattr(args, "no_wait", False) else args.lock_timeout):
             return run_gate(args, repo, d, config_path, head, clean)
     except LockTimeout as e:
         print(f"sub0perf: {e}; push blocked")
@@ -277,7 +300,7 @@ def run_gate(args, repo, d, config_path, head, clean):
     upstream = git(repo, "rev-parse", "@{upstream}")
     blocked = []
     power_now, pol = args.power_state, args.power_policy
-    pending = deferral.load(d)
+    pending = deferral.covered(repo, d, head)
     for line in deferral.describe(pending):
         print(line)
     for target, t in config.get("targets", {}).items():
@@ -404,8 +427,8 @@ def run_gate(args, repo, d, config_path, head, clean):
         print("\nsub0perf: the push is blocked by a regression; earlier pushes were not measured, so it may come from any of them:")
         for line in deferral.describe(pending)[1:]:
             print(line)
-    elif not blocked and not power_now.untrusted:
-        deferral.clear(d)  # measured on mains and fine: the unmeasured range is covered
+    elif not blocked and not power_now.untrusted and config.get("targets"):
+        deferral.clear(d, pending)  # keep any ranges deferred while this gate was already measuring
     if power_now.untrusted:  # repeated at the end, where the verdict is read
         print(f"\nsub0perf: {power.override_text(power_now)}")
     return 1 if blocked else 0

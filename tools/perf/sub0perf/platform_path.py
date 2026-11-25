@@ -1,6 +1,6 @@
 """Finding Sub0Platform's Python package (`sub0platform`) without installing it.
 
-Sub0Perf keeps the tooling standard-library only, so nothing is pip-installed: the configure step fetches Sub0Platform at a pinned tag
+Sub0Perf keeps the tooling standard-library only, so nothing is pip-installed: the configure step fetches Sub0Platform at a pinned commit
 (CPM, download only) and records its `python/` directory, and this module puts that directory on `sys.path`. Where it looks, first hit wins; with none the command stops with one line naming the configure step:
 
   1. `sub0platform` is already importable (an installed or vendored copy: nothing to add)

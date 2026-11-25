@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 
+from . import machine
 from .common import atomic_write_text
 from .gitstate import git_head, tree_clean
 from .load import wait_for_quiet
@@ -77,7 +78,7 @@ def command_at_root(command, root):
     return [str(executable.resolve(strict=True)), *command[1:]]
 
 
-def measure(spec_path, repo, rounds=3, timeout=120, max_load=0.05, settle=10):
+def measure(spec_path, repo, rounds=3, timeout=120, max_load=0.05, settle=10, *, no_wait=False):
     if rounds < 3 or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("at least three rounds and a positive finite timeout required")
     if not 0 <= max_load <= 0.05 or not 0 <= settle <= 60:
@@ -104,7 +105,7 @@ def measure(spec_path, repo, rounds=3, timeout=120, max_load=0.05, settle=10):
     environment.update(overrides)
     captured_env = {key: environment[key] for key in sorted(set(overrides) | {
         "OMP_NUM_THREADS", "OMP_PLACES", "OMP_PROC_BIND", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"}) if key in environment}
-    with PerfLock(repo, "workload evidence", timeout=0):
+    with machine.take("workload evidence", no_wait=no_wait), PerfLock(repo, "workload evidence", timeout=0):
         state = power_state()
         if state.untrusted or state.source == "fake":
             raise ValueError("real trusted power state required for workload evidence")
@@ -237,6 +238,7 @@ def main(argv=None):
     run.add_argument("--timeout", type=float, default=120)
     run.add_argument("--max-load", type=float, default=0.05)
     run.add_argument("--settle", type=float, default=10)
+    run.add_argument("--no-wait", action="store_true", help="fail immediately when the machine lease is held")
     judge = commands.add_parser("check")
     judge.add_argument("--results", required=True)
     judge.add_argument("--baseline")
@@ -248,7 +250,7 @@ def main(argv=None):
                 raise ValueError("--out must be a new evidence path; retain earlier records explicitly")
             # Existing shared helpers may print diagnostics; stdout remains one JSON outcome.
             with contextlib.redirect_stdout(sys.stderr):
-                record = measure(args.spec, args.repo, args.rounds, args.timeout, args.max_load, args.settle)
+                record = measure(args.spec, args.repo, args.rounds, args.timeout, args.max_load, args.settle, no_wait=args.no_wait)
             validate(record)
             atomic_write_text(args.out, json.dumps(record, indent=2, allow_nan=False) + "\n", overwrite=False)
             print(json.dumps(outcome("recorded", record=str(Path(args.out).resolve()), samples=len(record["samples"]),
@@ -260,7 +262,10 @@ def main(argv=None):
                                  next_action=("inspect memory use or explicitly review the budget" if result["memory_verdict"] == "over-budget"
                                               else "memory only; use the calibrated gate for timing verdicts"))))
         return int(result["memory_verdict"] == "over-budget")
-    except (OSError, ValueError, KeyError, TypeError, TimeoutError, LockTimeout) as error:
+    except machine.Busy as error:
+        print(json.dumps(outcome("refused", error=str(error), blocked=error.blocked(), next_action=machine.NEXT_ACTION)))
+        return 1
+    except (OSError, ValueError, KeyError, TypeError, TimeoutError, LockTimeout, machine.Unavailable) as error:
         parser.error(str(error))
 
 

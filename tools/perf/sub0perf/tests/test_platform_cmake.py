@@ -25,10 +25,12 @@ class PlatformCopyTest(unittest.TestCase):
                 'message(STATUS "PY=${SUB0PERF_PLATFORM_PYTHON}")\nmessage(STATUS "OWN=${Sub0Platform_SOURCE_DIR}")\n')
         (self.dir / "CMakeLists.txt").write_text(text, encoding="utf-8")
 
-    def platform(self, launch):
+    def platform(self, launch, *, lease=True):
         root = self.dir / "platform"
         (root / "python" / "sub0platform").mkdir(parents=True)
         (root / "python" / "sub0platform" / "proc.py").write_text("def launch(cmd):\n    pass\n" if launch else "def alive(p):\n    pass\n", encoding="utf-8")
+        if lease:
+            (root / "python" / "sub0platform" / "lease.py").write_text("", encoding="utf-8")
         return root
 
     def configure(self, override):
@@ -43,6 +45,13 @@ class PlatformCopyTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-1500:])
         self.assertIn(f"PY={(root / 'python').as_posix()}", done.stdout)
         self.assertIn("OWN=/consumer/own/cpp", done.stdout)
+
+    def test_a_platform_without_lease_stops_the_configure(self):
+        done = self.configure(self.platform(True, lease=False))
+        if "get_cpm" in done.stderr + done.stdout:
+            self.skipTest("CPM could not be fetched")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("lacks sub0platform.lease", " ".join(done.stderr.split()))
 
     def test_a_platform_without_launch_stops_the_configure(self):
         done = self.configure(self.platform(False))
