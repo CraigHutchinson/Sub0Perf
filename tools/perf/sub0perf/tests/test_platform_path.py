@@ -45,18 +45,12 @@ class PlatformPathTest(RepoTestCase):
         (directory / "config.json").write_text(json.dumps({"platform_python": self.package}), encoding="utf-8")
         self.assertEqual(pp.ensure(self.repo, {}), self.package)
 
-    def test_the_build_record_is_found(self):
+    def test_a_build_record_is_no_longer_scanned(self):
         build = self.repo / "build" / "debug"
         build.mkdir(parents=True)
-        (build / pp.RECORD).write_text(self.package + "\n", encoding="utf-8")
-        self.assertEqual(pp.ensure(self.repo, {}), self.package)
-
-    def test_a_stale_record_is_skipped_for_a_valid_one(self):
-        old, new = self.repo / "build-old", self.repo / "build-new"
-        for build, target in ((old, "/no/such/dir"), (new, self.package)):
-            build.mkdir()
-            (build / pp.RECORD).write_text(target, encoding="utf-8")
-        self.assertEqual(pp.ensure(self.repo, {}), self.package)
+        (build / "sub0perf_platform_dir.txt").write_text(self.package, encoding="utf-8")
+        with self.assertRaises(ImportError):
+            pp.ensure(self.repo, {})
 
     def test_nothing_found_says_how_to_fix_it(self):
         with self.assertRaises(ImportError) as error:

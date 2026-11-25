@@ -10,11 +10,7 @@ sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp)    # plus _json/_ch
 ```
 
 **Sub0Platform.** Process launching (`proc.launch`, with the timeout and CPU pin) and pid checks come from the `sub0platform` Python package,
-which the tooling does not install: configuring fetches Sub0Platform at `SUB0PERF_PLATFORM_TAG` (default `main` while the family is in development, so a break shows early; set a release tag such as `v0.2.0` to pin; CPM `DOWNLOAD_ONLY`, or
-FetchContent when CPM is not loaded), records its `python/` directory in `<build>/sub0perf_platform_dir.txt` and, through `install-hooks
---platform-dir`, in `.git/sub0perf/config.json` (`platform_python`), and `platform_path.py` puts it on `sys.path`. Lookup order: an importable
-`sub0platform`, `SUB0PERF_PLATFORM_DIR`, the git config (so a git hook finds it), then the build records. Without any of them the command stops with
-one line saying how to fix it. The machine-wide power and clock readings (`power.py`, `speed.py`, `cpu_times`) stay here until Sub0Platform's host module exists.
+which the tooling does not install: configuring fetches Sub0Platform with CPM (`DOWNLOAD_ONLY`) at the release tag `SUB0PERF_PLATFORM_TAG` (default `v0.2.0`). To use a local checkout instead, set the environment variable `CPM_Sub0Platform_SOURCE` to its directory (CPM's own override); a copy older than 0.2.0 (no `proc.launch`) stops the configure. The CMake targets pass its `python/` directory to the tooling as `SUB0PERF_PLATFORM_DIR`, `install-hooks --platform-dir` records it in `.git/sub0perf/config.json` (`platform_python`) so a git hook finds it, and `platform_path.py` puts it on `sys.path`. Lookup order: an importable `sub0platform`, `SUB0PERF_PLATFORM_DIR`, the git config. With none the command stops with one line naming the configure step. Running `bench_check.py` by hand in a repository whose hooks are not installed needs `SUB0PERF_PLATFORM_DIR` set. The machine-wide power and clock readings (`power.py`, `speed.py`, `cpu_times`) stay here until Sub0Platform's host module exists.
 
 **Names.** The CMake functions are `sub0perf_add_benchmark`, `sub0perf_target_perf_options`, `sub0perf_add_test` and
 `sub0perf_label_full_tests`; the variables are `SUB0PERF_*` (`SUB0MATH_PERF_X` became `SUB0PERF_X`, and every other `SUB0MATH_Y` became
