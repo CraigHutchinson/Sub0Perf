@@ -16,7 +16,7 @@ include("${Sub0Perf_SOURCE_DIR}/cmake/Sub0Perf.cmake")
 sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp METRICS perf/metrics.json SMOKE_TEST)
 ```
 
-Releases are git tags (`v0.2.0`: the `sub0perf_*` / `SUB0PERF_*` names, processes from Sub0Platform, docs-only branch detection, bounded runs, correctness before timing). Consumers pin the tag's commit SHA. The old `sub0math_*` / `SUB0MATH_*` names still work in 0.2.x and go in `v0.3.0`. A local Sub0Platform checkout replaces the one Sub0Perf fetches: set `CPM_Sub0Platform_SOURCE`.
+Releases are git tags (`v0.2.0`: the `sub0perf_*` / `SUB0PERF_*` names, processes from Sub0Platform, docs-only branch detection, bounded runs, correctness before timing). Consumers pin the tag's commit SHA. The old `sub0math_*` / `SUB0MATH_*` names were removed in `v0.3.0`. A local Sub0Platform checkout replaces the one Sub0Perf fetches: set `CPM_Sub0Platform_SOURCE`.
 
 See [examples/bench_sample.cpp](examples/bench_sample.cpp) and [docs/PERFORMANCE.md](docs/PERFORMANCE.md) (timing budgets,
 the gate, deterministic metrics, output contract, profiling) and [docs/PERF_LOOP.md](docs/PERF_LOOP.md) (the improve loop).
