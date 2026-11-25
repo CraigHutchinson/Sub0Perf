@@ -18,8 +18,8 @@ from pathlib import Path
 
 AC, BATTERY, UNKNOWN = "ac", "battery", "unknown"
 FAKE_VAR = "SUB0PERF_FAKE_POWER"
-OVERRIDE_VAR = "SUB0MATH_PERF_ON_BATTERY"   # measure anyway
-STRICT_VAR = "SUB0MATH_PERF_POWER_STRICT"   # fail the push instead of deferring
+OVERRIDE_VAR = "SUB0PERF_ON_BATTERY"   # measure anyway
+STRICT_VAR = "SUB0PERF_POWER_STRICT"   # fail the push instead of deferring
 OVERRIDE_TEXT = (f"{OVERRIDE_VAR}=1: measuring on battery; timings are not comparable with the mains baseline "
                  f"and cannot become one")
 OVERRIDE_TEXT_THROTTLED = (f"{OVERRIDE_VAR}=1: measuring on a throttled machine; timings are not comparable with the baseline "
@@ -205,7 +205,7 @@ def truthy(value):
 
 @dataclass(frozen=True)
 class Policy:
-    override: bool = False  # SUB0MATH_PERF_ON_BATTERY: measure anyway
+    override: bool = False  # SUB0PERF_ON_BATTERY: measure anyway
     strict: bool = False    # fail instead of deferring
 
 

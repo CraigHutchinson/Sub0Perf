@@ -34,8 +34,8 @@ def milestone_refs(refs, patterns):
 
 
 def select_level(cli_level, env_level, refs, patterns):
-    """(level, why). Precedence: --level, then SUB0MATH_PERF_LEVEL, then a pushed milestone tag (full), then quick."""
-    for source, value in (("--level", cli_level), ("SUB0MATH_PERF_LEVEL", env_level)):
+    """(level, why). Precedence: --level, then SUB0PERF_LEVEL, then a pushed milestone tag (full), then quick."""
+    for source, value in (("--level", cli_level), ("SUB0PERF_LEVEL", env_level)):
         if value:
             value = value.strip().lower()
             if value not in LEVELS:
@@ -48,9 +48,9 @@ def select_level(cli_level, env_level, refs, patterns):
 
 
 def select_budget(level, cli_budget, env_budget, config_budget=None):
-    """(seconds or None, why). A quick gate has a budget (--budget, SUB0MATH_PERF_BUDGET, the config's, else 90 s); full has
-    none unless one is given with --budget or SUB0MATH_PERF_BUDGET. 0 or less means no budget."""
-    for source, value in (("--budget", cli_budget), ("SUB0MATH_PERF_BUDGET", env_budget)):
+    """(seconds or None, why). A quick gate has a budget (--budget, SUB0PERF_BUDGET, the config's, else 90 s); full has
+    none unless one is given with --budget or SUB0PERF_BUDGET. 0 or less means no budget."""
+    for source, value in (("--budget", cli_budget), ("SUB0PERF_BUDGET", env_budget)):
         if value not in (None, ""):
             seconds = float(value)
             return (seconds if seconds > 0 else None), f"{source}={seconds:g}"
@@ -65,8 +65,8 @@ def select_budget(level, cli_budget, env_budget, config_budget=None):
 def resolve(args, refs, config=None, environ=None):
     """Sets args.level, args.level_why, args.budget_seconds and args.budget_why from the command line, environment, refs and config."""
     environ = os.environ if environ is None else environ
-    level, why = select_level(getattr(args, "level", None), environ.get("SUB0MATH_PERF_LEVEL"), refs, full_ref_patterns(config))
-    budget, budget_why = select_budget(level, getattr(args, "budget", None), environ.get("SUB0MATH_PERF_BUDGET"),
+    level, why = select_level(getattr(args, "level", None), environ.get("SUB0PERF_LEVEL"), refs, full_ref_patterns(config))
+    budget, budget_why = select_budget(level, getattr(args, "budget", None), environ.get("SUB0PERF_BUDGET"),
                                        (config or {}).get("quick_budget"))
     args.level, args.level_why, args.budget_seconds, args.budget_why = level, why, budget, budget_why
     return level, budget

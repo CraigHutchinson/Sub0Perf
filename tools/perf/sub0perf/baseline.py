@@ -10,11 +10,11 @@ from .common import atomic_write_text
 from .stats import pair_ratios, summarise
 
 
-HOST_VAR = "SUB0MATH_PERF_HOST"  # the name the baseline file carries (perf/baselines/<name>.json); the build passes it on
+HOST_VAR = "SUB0PERF_HOST"  # the name the baseline file carries (perf/baselines/<name>.json); the build passes it on
 
 
 def perf_host(recorded=None):
-    """The host name a record or baseline carries: SUB0MATH_PERF_HOST (the name used for the baseline file) when set, else `recorded`, else the real one."""
+    """The host name a record or baseline carries: SUB0PERF_HOST (the name used for the baseline file) when set, else `recorded`, else the real one."""
     return os.environ.get(HOST_VAR, "").strip() or recorded or platform.node()
 
 

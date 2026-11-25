@@ -41,11 +41,11 @@ from pathlib import Path
 from .common import CALIBRATION, read_json
 
 DEFAULT_LIMIT = 1.4
-LIMIT_VAR = "SUB0MATH_PERF_THROTTLE_RATIO"   # slower than the baseline's calibration by more than this: throttled
+LIMIT_VAR = "SUB0PERF_THROTTLE_RATIO"   # slower than the baseline's calibration by more than this: throttled
 FAKE_VAR = "SUB0PERF_FAKE_SPEED"             # tests only: the burst ratio to report
 FAKE_SUSTAINED_VAR = "SUB0PERF_FAKE_SUSTAINED"   # tests only: the sustained ratio to report
 DEFAULT_WARM = 4.5                           # seconds of load before the sustained reading (the throttle sets in after about 3 s)
-WARM_VAR = "SUB0MATH_PERF_WARM_SECONDS"      # or "warm_seconds" in the config; 0 = burst reading only
+WARM_VAR = "SUB0PERF_WARM_SECONDS"      # or "warm_seconds" in the config; 0 = burst reading only
 
 
 @dataclass

@@ -60,11 +60,11 @@ and appends an entry (date, commit, reason, before and after) to the baseline's 
 that file with the change. `git push --no-verify` bypasses the hook, as with any git hook.
 
 Levels and the time budget. `gate` and `auto` run at the `quick` level by default: 2 controls (hand-written references) always, plus as
-many whole groups (a pair group, or a standalone benchmark), stalest first, as fit --budget (default 90 s, SUB0MATH_PERF_BUDGET, or the configured quick budget). A regression
+many whole groups (a pair group, or a standalone benchmark), stalest first, as fit --budget (default 90 s, SUB0PERF_BUDGET, or the configured quick budget). A regression
 is still confirmed in full even if that overruns the budget; inconclusive and unmeasured benchmarks never block.
 A benchmark with no recorded cost is timed first (one sample, cut off at a tenth of the budget, a fifth in all); a slower one, or a group costing more than the whole budget, is
 reported as not measured yet and left to the full level, and never justifies an overrun.
-`--level full` (or SUB0MATH_PERF_LEVEL=full, or pushing a tag matching `v*` / `milestone/*`, configurable with
+`--level full` (or SUB0PERF_LEVEL=full, or pushing a tag matching `v*` / `milestone/*`, configurable with
 install-hooks --full-refs) measures everything with the full method and no budget. The level and why are the first
 line of the gate output. See docs/PERFORMANCE.md, "Levels, time budget and coverage".
 
@@ -91,7 +91,6 @@ from . import levels, output, platform_proc, plan as planning, power, speed
 from .accept import accept_command, baseline_command
 from .baseline import make_record, write_samples
 from .common import read_json
-from . import envnames
 from .compare import compare_command
 from .confirm import confirm_regressions, noisy_names
 from .gate import choose_benchmarks, gate_command, power_guard
@@ -154,7 +153,7 @@ def check_command(args):
 
 
 def auto_command(args):
-    if os.environ.get("SUB0MATH_PERF_SKIP"):
+    if os.environ.get("SUB0PERF_SKIP"):
         return 0  # the gate builds benchmarks itself and measures them once
     state, pol = checked_state(args), power.policy()
     args.power_state = state
@@ -179,7 +178,7 @@ def auto_command(args):
 
 def measure_and_judge(args):
     from .runner import list_names
-    levels.resolve(args, [])  # --level / SUB0MATH_PERF_LEVEL, else quick; refs only matter to the pre-push gate
+    levels.resolve(args, [])  # --level / SUB0PERF_LEVEL, else quick; refs only matter to the pre-push gate
     repo = Path(args.repo) if args.repo else None
     perf = perf_dir(repo) if repo else None
     head = (git_head(repo) if repo else None) or str(args.seed)
@@ -198,7 +197,7 @@ def measure_and_judge(args):
     samples, meta, positions, counters = measure_all(args.exe, args, names=names, rounds=rounds, timings=timings)
     now = getattr(args, "power_state", None) or power.power_state()  # (`state` above is the coverage state)
     record = make_record(args.exe, samples, meta, positions, counters, args.epochs, args.seed, now)
-    if now.untrusted:  # only under SUB0MATH_PERF_ON_BATTERY
+    if now.untrusted:  # only under SUB0PERF_ON_BATTERY
         record["power_override"] = True
         print(f"sub0perf: {power.override_text(now)}")
     # Benchmarks too noisy to judge get more rounds, up to --max-rounds in total (a quick run only while the budget allows).
@@ -236,7 +235,6 @@ def measure_and_judge(args):
 
 
 def main():
-    envnames.apply_aliases()  # SUB0PERF_* or the old SUB0MATH_* spelling of every variable, whichever was given
     # Keep the legacy benchmark parser/commands unchanged; workload evidence has its own
     # schema and budgets, reached through the same entry point used by all consumers.
     if sys.argv[1:2] == ["workload"]:
@@ -254,10 +252,10 @@ def main():
     parser.add_argument("--epochs", type=int, default=0, help="override nanobench epochs (quicker, noisier)")
     parser.add_argument("--level", choices=list(levels.LEVELS), default=None,
                         help="gate, auto: quick (default; a time-budgeted baseline of coverage) or full (everything, full rigour). "
-                             "Precedence: --level, then SUB0MATH_PERF_LEVEL, then a pushed tag matching the full-ref patterns "
+                             "Precedence: --level, then SUB0PERF_LEVEL, then a pushed tag matching the full-ref patterns "
                              "(default v*, milestone/*), then quick")
     parser.add_argument("--budget", type=float, default=None, metavar="SECONDS",
-                        help="gate, auto: target seconds of measuring. Quick defaults to SUB0MATH_PERF_BUDGET, the configured "
+                        help="gate, auto: target seconds of measuring. Quick defaults to SUB0PERF_BUDGET, the configured "
                              "quick budget, else 90; full has none unless given. 0 = no budget. compare: the most one run may take "
                              "(default 300; 0 = no limit): without --filter a longer planned run is refused")
     parser.add_argument("--full-refs", action="append", default=[], metavar="PATTERNS",
@@ -299,7 +297,7 @@ def main():
     parser.add_argument("--benchmark", nargs="+", default=[], help="accept: benchmarks to move to the new measurement")
     parser.add_argument("--all-changed", action="store_true", help="accept: every regressed or improved benchmark")
     parser.add_argument("--force-power", action="store_true",
-                        help="baseline, accept: allow a record measured by hand on battery (never one measured under SUB0MATH_PERF_ON_BATTERY)")
+                        help="baseline, accept: allow a record measured by hand on battery (never one measured under SUB0PERF_ON_BATTERY)")
     parser.add_argument("--record", action="store_true", help="auto: keep a clean tree's measurement as its commit's record")
     parser.add_argument("--repo", help="git repository (auto --record, gate, install-hooks, selftest)")
     parser.add_argument("--target", help="benchmark target name (auto --record, install-hooks; selftest: check just this target)")
@@ -317,7 +315,7 @@ def main():
              "accept": ["results", "baseline", "reason"], "gate": [], "compare": ["exe"], "metrics": ["spec"], "install-hooks": ["repo", "build_dir", "target", "exe", "baseline"],
              "note-checkout": [], "selftest": [], "power": []}
     if args.command == "accept" and not args.reason:
-        args.reason = os.environ.get("SUB0MATH_PERF_REASON")
+        args.reason = os.environ.get("SUB0PERF_REASON")
     if args.command == "accept" and (args.metric or args.spec):
         needs["accept"] = ["spec", "reason"]
     if args.command in ("metrics", "accept") and (args.metric or args.command == "metrics") and not (args.results or args.exe):
@@ -327,7 +325,7 @@ def main():
         parser.error(f"{args.command} needs {' '.join(missing)}")
     if args.exe:
         args.exe = str(Path(args.exe).resolve())
-    args.reason = args.reason or os.environ.get("SUB0MATH_PERF_REASON")  # lets build targets pass a reason
+    args.reason = args.reason or os.environ.get("SUB0PERF_REASON")  # lets build targets pass a reason
     platform_proc.set_pin_cpu(platform_proc.resolve_pin_cpu(args.cpu))
     if args.command == "gate":
         args.rounds = args.rounds if args.rounds != 5 else 3

@@ -45,44 +45,32 @@ include_guard(GLOBAL)
 # Paths are resolved inside each function from CMAKE_CURRENT_FUNCTION_LIST_DIR: include_guard skips
 # re-inclusion, so variables set here would not reach a consumer's directory scope.
 
-# Transition (one release): the SUB0MATH_* names keep working. A setting declared here is a cache entry only while its old name is not
-# defined; when a consumer defines the old name (set(SUB0MATH_PERF_ON_BUILD OFF CACHE ...), -DSUB0MATH_PERF_GIT_HOOKS=OFF), its value is
-# used through a plain variable of the new name each run, so a stale cache entry of the new name never hides it. The new name wins when both
-# are given. SUB0MATH_PERF_X is SUB0PERF_X; the other SUB0MATH_Y are SUB0PERF_Y.
-macro(_sub0perf_setting name old default type doc)
-    if(NOT DEFINED ${name} AND DEFINED ${old})
-        set(${name} "${${old}}")
-    elseif(NOT DEFINED ${old})
-        set(${name} "${default}" CACHE ${type} "${doc}")
-    endif()
+macro(_sub0perf_setting name default type doc)
+    set(${name} "${default}" CACHE ${type} "${doc}")
 endmacro()
 
-_sub0perf_setting(SUB0PERF_PROFILE_FLAGS SUB0MATH_PROFILE_FLAGS OFF BOOL "Debug info and frame pointers in optimised builds, for profilers")
-_sub0perf_setting(SUB0PERF_VECTORIZATION_REPORT SUB0MATH_VECTORIZATION_REPORT OFF BOOL "Emit compiler vectorization remarks")
-_sub0perf_setting(SUB0PERF_NATIVE_ARCH SUB0MATH_NATIVE_ARCH OFF BOOL "Tune for the build machine's CPU (local experiments only)")
-_sub0perf_setting(SUB0PERF_PROFILE_FILTER SUB0MATH_PROFILE_FILTER "" STRING "Benchmark name substring the profiling targets run")
-_sub0perf_setting(SUB0PERF_PROFILE_SECONDS SUB0MATH_PROFILE_SECONDS "10" STRING "Soak seconds per benchmark under a profiler")
-_sub0perf_setting(SUB0PERF_BENCH_REPEATS SUB0MATH_BENCH_REPEATS "5" STRING "Interleaved rounds per budget check (tools/perf/bench_check.py)")
-_sub0perf_setting(SUB0PERF_ON_BUILD SUB0MATH_PERF_ON_BUILD "REPORT" STRING
+_sub0perf_setting(SUB0PERF_PROFILE_FLAGS OFF BOOL "Debug info and frame pointers in optimised builds, for profilers")
+_sub0perf_setting(SUB0PERF_VECTORIZATION_REPORT OFF BOOL "Emit compiler vectorization remarks")
+_sub0perf_setting(SUB0PERF_NATIVE_ARCH OFF BOOL "Tune for the build machine's CPU (local experiments only)")
+_sub0perf_setting(SUB0PERF_PROFILE_FILTER "" STRING "Benchmark name substring the profiling targets run")
+_sub0perf_setting(SUB0PERF_PROFILE_SECONDS "10" STRING "Soak seconds per benchmark under a profiler")
+_sub0perf_setting(SUB0PERF_BENCH_REPEATS "5" STRING "Interleaved rounds per budget check (tools/perf/bench_check.py)")
+_sub0perf_setting(SUB0PERF_ON_BUILD "REPORT" STRING
     "After a benchmark executable is rebuilt: OFF, REPORT (print regressions and progressions) or ENFORCE (fail the build on a regression)")
-_sub0perf_setting(SUB0PERF_QUICK_ROUNDS SUB0MATH_PERF_QUICK_ROUNDS "3" STRING "Rounds for the after-build check (noisy benchmarks get up to twice as many)")
-_sub0perf_setting(SUB0PERF_QUICK_BUDGET SUB0MATH_PERF_QUICK_BUDGET "90" STRING
+_sub0perf_setting(SUB0PERF_QUICK_ROUNDS "3" STRING "Rounds for the after-build check (noisy benchmarks get up to twice as many)")
+_sub0perf_setting(SUB0PERF_QUICK_BUDGET "90" STRING
     "Target seconds of measuring for the quick level (the pre-push gate and the after-build check); 0 = no budget. Override per run with SUB0PERF_BUDGET or --budget")
-_sub0perf_setting(SUB0PERF_FULL_REFS SUB0MATH_PERF_FULL_REFS "v*;milestone/*" STRING
+_sub0perf_setting(SUB0PERF_FULL_REFS "v*;milestone/*" STRING
     "Tag-name patterns (a list): pushing a matching tag runs the pre-push gate at the full level. Override a run with SUB0PERF_LEVEL=full|quick")
-_sub0perf_setting(SUB0PERF_QUICK_EPOCHS SUB0MATH_PERF_QUICK_EPOCHS "0" STRING
+_sub0perf_setting(SUB0PERF_QUICK_EPOCHS "0" STRING
     "nanobench epochs in the after-build check; 0 = default, the same method as baselines and records")
-_sub0perf_setting(SUB0PERF_GIT_HOOKS SUB0MATH_PERF_GIT_HOOKS "AUTO" STRING
+_sub0perf_setting(SUB0PERF_GIT_HOOKS "AUTO" STRING
     "Pre-push performance gate and post-checkout note in this repository's git hooks: ON, OFF, or AUTO (the default: on only from the main checkout (a linked worktree shares its hooks and gate configuration: docs/PERFORMANCE.md), where perf/baselines/<host>.json exists, and never on CI)")
 if(DEFINED CACHE{SUB0PERF_ON_BUILD})
     set_property(CACHE SUB0PERF_ON_BUILD PROPERTY STRINGS OFF REPORT ENFORCE)
 endif()
 if(DEFINED CACHE{SUB0PERF_GIT_HOOKS})
     set_property(CACHE SUB0PERF_GIT_HOOKS PROPERTY STRINGS AUTO ON OFF)
-endif()
-# SUB0MATH_PERF_PINS is a list a consumer sets as a plain variable; the new name SUB0PERF_PINS is read first.
-if(NOT DEFINED SUB0PERF_PINS AND DEFINED SUB0MATH_PERF_PINS)
-    set(SUB0PERF_PINS "${SUB0MATH_PERF_PINS}")
 endif()
 # The compare and accept targets declare their settings in sub0perf_add_benchmark, through the same macro.
 
@@ -121,18 +109,15 @@ endif()
 # CPM may place Sub0Perf anywhere, so consumers should not hard-code the path.
 get_filename_component(_sub0perf_tooling_dir "${CMAKE_CURRENT_LIST_DIR}/../tools/perf" ABSOLUTE)
 file(WRITE "${CMAKE_BINARY_DIR}/sub0perf_tooling_dir.txt" "${_sub0perf_tooling_dir}")
-file(WRITE "${CMAKE_BINARY_DIR}/sub0math_tooling_dir.txt" "${_sub0perf_tooling_dir}")  # the old name, for one release
 
 cmake_host_system_information(RESULT _sub0perf_host QUERY HOSTNAME)
 string(TOLOWER "${_sub0perf_host}" _sub0perf_host)
-if(NOT DEFINED SUB0PERF_HOST AND NOT DEFINED SUB0MATH_PERF_HOST)
+if(NOT DEFINED SUB0PERF_HOST)
     if(DEFINED ENV{SUB0PERF_HOST})
         set(_sub0perf_host "$ENV{SUB0PERF_HOST}")   # the baseline name a shell chose; the cache variable still wins
-    elseif(DEFINED ENV{SUB0MATH_PERF_HOST})
-        set(_sub0perf_host "$ENV{SUB0MATH_PERF_HOST}")
     endif()
 endif()
-_sub0perf_setting(SUB0PERF_HOST SUB0MATH_PERF_HOST "${_sub0perf_host}" STRING "Baseline name in perf/baselines/")
+_sub0perf_setting(SUB0PERF_HOST "${_sub0perf_host}" STRING "Baseline name in perf/baselines/")
 
 function(sub0perf_target_perf_options target)
     if(SUB0PERF_PROFILE_FLAGS)
@@ -207,7 +192,7 @@ function(sub0perf_add_benchmark target)
     set(baseline "${PROJECT_SOURCE_DIR}/perf/baselines/${SUB0PERF_HOST}.json")
     set(check "${tooling}/bench_check.py")
     # Records and baselines carry the host name the baseline file is named by (SUB0PERF_HOST), not the machine's own name.
-    set(host_env ${CMAKE_COMMAND} -E env "SUB0PERF_HOST=${SUB0PERF_HOST}" "SUB0MATH_PERF_HOST=${SUB0PERF_HOST}"
+    set(host_env ${CMAKE_COMMAND} -E env "SUB0PERF_HOST=${SUB0PERF_HOST}"
                  "SUB0PERF_PLATFORM_DIR=${SUB0PERF_PLATFORM_PYTHON}")
     set(profile "${tooling}/profile.py")
 
@@ -228,8 +213,8 @@ function(sub0perf_add_benchmark target)
         DEPENDS ${target}_runs USES_TERMINAL VERBATIM)
 
     # Interleaved A/B against a kept build, or SUB0PERF_COMPARE_AGAINST (docs/PERF_LOOP.md, step 3).
-    _sub0perf_setting(SUB0PERF_COMPARE_AGAINST SUB0MATH_COMPARE_AGAINST "" FILEPATH "<target>_compare: compare against this executable instead of the newest kept build")
-    _sub0perf_setting(SUB0PERF_COMPARE_FILTER SUB0MATH_COMPARE_FILTER "" STRING "<target>_compare: only benchmarks (and their groups) whose name contains this text")
+    _sub0perf_setting(SUB0PERF_COMPARE_AGAINST "" FILEPATH "<target>_compare: compare against this executable instead of the newest kept build")
+    _sub0perf_setting(SUB0PERF_COMPARE_FILTER "" STRING "<target>_compare: only benchmarks (and their groups) whose name contains this text")
     set(compare_args --exe $<TARGET_FILE:${target}> --target ${target} --repo "${PROJECT_SOURCE_DIR}" --rounds 10)
     if(SUB0PERF_COMPARE_AGAINST)
         list(APPEND compare_args --against "${SUB0PERF_COMPARE_AGAINST}")
@@ -257,7 +242,7 @@ function(sub0perf_add_benchmark target)
         set_tests_properties(${target}_metrics PROPERTIES LABELS "smoke")
         # Without SUB0PERF_ACCEPT_METRIC the failing and new metrics are accepted (--all-changed), never an xfail one; naming a
         # metric (a ;-list) accepts exactly those, and clears the xfail marker of a named metric. The spec is edited in place.
-        _sub0perf_setting(SUB0PERF_ACCEPT_METRIC SUB0MATH_ACCEPT_METRIC "" STRING "<target>_metrics_accept: accept only these metrics (;-list); an xfail is cleared only for a named one")
+        _sub0perf_setting(SUB0PERF_ACCEPT_METRIC "" STRING "<target>_metrics_accept: accept only these metrics (;-list); an xfail is cleared only for a named one")
         if(SUB0PERF_ACCEPT_METRIC)
             set(accept_which --metric ${SUB0PERF_ACCEPT_METRIC})
         else()
@@ -330,12 +315,3 @@ function(sub0perf_add_benchmark target)
             DEPENDS ${target} USES_TERMINAL VERBATIM)
     endforeach()
 endfunction()
-
-# The old function names, for one release: each says so once and forwards.
-foreach(_sub0perf_fn IN ITEMS add_benchmark target_perf_options add_test label_full_tests)
-    cmake_language(EVAL CODE "
-        function(sub0math_${_sub0perf_fn})
-            message(DEPRECATION \"sub0math_${_sub0perf_fn} is renamed sub0perf_${_sub0perf_fn}\")
-            sub0perf_${_sub0perf_fn}(\${ARGV})
-        endfunction()")
-endforeach()

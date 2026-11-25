@@ -6,7 +6,7 @@ Python (standard library only) and CMake; the runner is one C++ header on top of
 [nanobench](https://github.com/martinus/nanobench).
 
 It was extracted from Sub0Math, and its CMake functions and variables are `sub0perf_*` / `SUB0PERF_*`. The old
-`sub0math_*` / `SUB0MATH_*` names still work for one release (docs/PERFORMANCE.md, "Names").
+`sub0math_*` / `SUB0MATH_*` names were removed in `v0.3.0` (docs/PERFORMANCE.md, "Names").
 
 ## Use
 

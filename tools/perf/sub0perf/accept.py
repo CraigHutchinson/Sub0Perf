@@ -38,7 +38,7 @@ def power_refusal(record, source, force=False):
     """Prints why and returns True when the record's power state rules it out as a baseline.
 
     A run measured on battery (or in a battery saver) is refused; `--force-power` allows one made by hand (`run`), never one
-    the gate measured under SUB0MATH_PERF_ON_BATTERY (flagged `power_override`). `unknown` is allowed, and said so.
+    the gate measured under SUB0PERF_ON_BATTERY (flagged `power_override`). `unknown` is allowed, and said so.
     A record without the field (made before it existed) counts as ac.
     """
     info = record.get("power")
