@@ -286,9 +286,23 @@ private:
         return out + "\"";
     }
 
+    // The C++ standard library this executable was built with: a metric such as sizeof a std type is only comparable within one.
+    static const char* standardLibrary()
+    {
+#if defined(_LIBCPP_VERSION)
+        return "libc++";
+#elif defined(_MSVC_STL_VERSION)
+        return "MSVC STL";
+#elif defined(__GLIBCXX__)
+        return "libstdc++";
+#else
+        return "unknown";
+#endif
+    }
+
     void writeMetrics() const
     {
-        std::string text = "{\"metrics\":[";
+        std::string text = std::string("{\"stdlib\":") + jsonText(standardLibrary()) + ",\"metrics\":[";
         for (std::size_t i = 0; i < metrics_.size(); ++i)
         {
             char number[40];

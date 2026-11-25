@@ -521,6 +521,10 @@ python tools/perf/bench_check.py metrics --results metrics.json --spec perf/metr
 reason for a metric that is expected to fail: while it fails (XFAIL) it does not block, and when it starts to pass
 (XPASS) it does, so the marker gets removed. A spec metric the executable does not report is MISSING (blocks); a reported
 metric the spec lacks is NEW (listed, does not block). Exit 1 on FAIL, XPASS or MISSING; exit 2 on unreadable input.
+The executable also reports the C++ standard library it was built with (`"stdlib"`: libstdc++, libc++, MSVC STL) and `accept` records
+it in the spec. A run under another standard library reports every row as `SKIP (other standard library)` with its value and
+never fails (the size of a standard type differs between them); `accept` refuses results from another one, unless the spec's
+`stdlib` is removed on purpose. A spec or results without `stdlib` are judged as before.
 
 Moving a metric is explicit and logged, like a baseline: `accept --metric NAME... --reason "why"` (with
 `--spec`, and `--results` or `--exe`) sets the metric's `expected` (or `limit`) to the measured value, clears the `xfail` of a metric that is named,

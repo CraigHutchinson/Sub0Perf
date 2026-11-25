@@ -236,6 +236,51 @@ class MetricsTest(unittest.TestCase):
         self.write_results(size=32)
         self.assertEqual(self.accept([])[0], 2)
 
+    def stdlib_files(self, spec_stdlib, run_stdlib, **values):
+        data = json.loads(self.spec.read_text(encoding="utf-8"))
+        if spec_stdlib:
+            data["stdlib"] = spec_stdlib
+        self.spec.write_text(json.dumps(data), encoding="utf-8")
+        items = [{"name": n, "value": v, "unit": "", "kind": "max" if n == "steps" else "exact"} for n, v in values.items()]
+        out = {"metrics": items}
+        if run_stdlib:
+            out["stdlib"] = run_stdlib
+        self.results.write_text(json.dumps(out), encoding="utf-8")
+
+    def test_another_standard_library_skips_with_the_values_and_never_fails(self):
+        self.stdlib_files("libstdc++", "libc++", size=32, steps=99)
+        code, text = self.run_metrics()
+        self.assertEqual(code, 0)
+        self.assertIn("2 skipped (other standard library)", text)
+        self.assertIn("SKIP size: 32", text)
+        self.assertIn("accepted on libstdc++, this run is libc++", text)
+        self.assertNotIn("FAILED", text)
+
+    def test_the_same_standard_library_is_judged_as_usual(self):
+        self.stdlib_files("libstdc++", "libstdc++", size=32, steps=1)
+        code, text = self.run_metrics()
+        self.assertEqual(code, 1)
+        self.assertIn("FAILED size", text)
+
+    def test_a_spec_or_results_without_stdlib_are_judged_as_before(self):
+        for spec_stdlib, run_stdlib in (("", "libc++"), ("libstdc++", "")):
+            self.stdlib_files(spec_stdlib, run_stdlib, size=32, steps=1)
+            self.assertEqual(self.run_metrics()[0], 1, (spec_stdlib, run_stdlib))
+
+    def test_json_outcome_counts_skipped(self):
+        self.stdlib_files("libstdc++", "MSVC STL", size=32, steps=99)
+        data = json.loads(self.run_metrics("json")[1])
+        self.assertEqual((data["status"], data["exit"], data["counts"]["skipped"], data["counts"]["failed"]), ("PASS", 0, 2, 0))
+
+    def test_accept_records_the_standard_library_once_and_refuses_another(self):
+        self.stdlib_files("", "libstdc++", size=32, steps=1)
+        self.assertEqual(self.accept(["size"])[0], 0)
+        self.assertEqual(json.loads(self.spec.read_text(encoding="utf-8"))["stdlib"], "libstdc++")
+        self.stdlib_files("libstdc++", "libc++", size=40, steps=1)
+        code, text = self.accept(["size"])
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(self.spec.read_text(encoding="utf-8"))["metrics"]["size"]["expected"], 32)
+
 
 if __name__ == "__main__":
     unittest.main()
