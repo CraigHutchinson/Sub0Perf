@@ -7,7 +7,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from . import levels
+from . import levels, platform_path
 from .common import atomic_write_text, read_json, tooling_script
 from .gitstate import git, git_head, inside, is_linked_worktree, log_event, perf_dir, worktree_roots
 from .pins import parse_pin
@@ -161,6 +161,9 @@ def install_hooks_command(args):
             return 2
         keep = [p for p in config.get("pins", []) if (p["file"], p["var"]) not in {(n["file"], n["var"]) for n in new_pins}]
         config["pins"] = keep + new_pins
+    platform_dir = getattr(args, "platform_dir", None) or platform_path.loaded_dir()  # a git hook finds sub0platform through this
+    if platform_dir:
+        config["platform_python"] = str(Path(platform_dir).resolve())
     atomic_write_text(config_path, json.dumps(config, indent=2) + "\n")
     hooks = hooks_dir(repo)
     python = Path(sys.executable).as_posix()

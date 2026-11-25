@@ -86,6 +86,31 @@ if(NOT DEFINED SUB0PERF_PINS AND DEFINED SUB0MATH_PERF_PINS)
 endif()
 # The compare and accept targets declare their settings in sub0perf_add_benchmark, through the same macro.
 
+# Sub0Platform's Python package (processes: launch, alive, terminate): fetched with CPM at a pinned release tag, download only. The tooling
+# stays standard-library only (nothing is pip-installed): the python/ directory reaches it through SUB0PERF_PLATFORM_DIR (the CMake targets
+# set it) and `.git/sub0perf/config.json` (install-hooks records it, so a git hook finds it); platform_path.py puts it on sys.path.
+# Locally, CPM's own override uses a checkout instead of the tag: set the environment variable CPM_Sub0Platform_SOURCE (or the cache
+# variable) to its directory. A copy that lacks proc.launch (older than 0.2.0) stops the configure.
+set(SUB0PERF_PLATFORM_TAG "v0.2.0" CACHE STRING "Sub0Platform release tag whose Python package the tooling uses")
+if(NOT COMMAND CPMAddPackage)
+    include("${CMAKE_CURRENT_LIST_DIR}/get_cpm.cmake")
+endif()
+if(NOT DEFINED Sub0Platform_SOURCE_DIR)
+    CPMAddPackage(NAME Sub0Platform
+        GITHUB_REPOSITORY CraigHutchinson/Sub0Platform
+        GIT_TAG ${SUB0PERF_PLATFORM_TAG}
+        DOWNLOAD_ONLY YES)
+endif()
+set(SUB0PERF_PLATFORM_PYTHON "${Sub0Platform_SOURCE_DIR}/python")
+if(EXISTS "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py")
+    file(READ "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py" _sub0perf_proc)
+endif()
+string(FIND "${_sub0perf_proc}" "def launch(" _sub0perf_has_launch)
+if(_sub0perf_has_launch EQUAL -1)
+    message(FATAL_ERROR "sub0perf: ${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py has no launch(): Sub0Platform is older than 0.2.0 "
+                        "(a CPM_Sub0Platform_SOURCE override or a Sub0Platform_SOURCE_DIR set by the consumer); use a newer checkout or the tag ${SUB0PERF_PLATFORM_TAG}")
+endif()
+
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0perf_tooling_dir.txt)/profile.py" ...`.
 # CPM may place Sub0Perf anywhere, so consumers should not hard-code the path.
 get_filename_component(_sub0perf_tooling_dir "${CMAKE_CURRENT_LIST_DIR}/../tools/perf" ABSOLUTE)
@@ -176,7 +201,8 @@ function(sub0perf_add_benchmark target)
     set(baseline "${PROJECT_SOURCE_DIR}/perf/baselines/${SUB0PERF_HOST}.json")
     set(check "${tooling}/bench_check.py")
     # Records and baselines carry the host name the baseline file is named by (SUB0PERF_HOST), not the machine's own name.
-    set(host_env ${CMAKE_COMMAND} -E env "SUB0PERF_HOST=${SUB0PERF_HOST}" "SUB0MATH_PERF_HOST=${SUB0PERF_HOST}")
+    set(host_env ${CMAKE_COMMAND} -E env "SUB0PERF_HOST=${SUB0PERF_HOST}" "SUB0MATH_PERF_HOST=${SUB0PERF_HOST}"
+                 "SUB0PERF_PLATFORM_DIR=${SUB0PERF_PLATFORM_PYTHON}")
     set(profile "${tooling}/profile.py")
 
     add_custom_target(${target}_json
@@ -189,7 +215,7 @@ function(sub0perf_add_benchmark target)
                 --rounds ${SUB0PERF_BENCH_REPEATS}
         DEPENDS ${target} USES_TERMINAL VERBATIM)
     add_custom_target(${target}_check
-        COMMAND ${Python3_EXECUTABLE} "${check}" check --results "${samples}" --baseline "${baseline}"
+        COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" check --results "${samples}" --baseline "${baseline}"
         DEPENDS ${target}_runs USES_TERMINAL VERBATIM)
     add_custom_target(${target}_baseline
         COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" baseline --results "${samples}" --baseline "${baseline}"
@@ -208,7 +234,7 @@ function(sub0perf_add_benchmark target)
         list(APPEND compare_args --filter "${SUB0PERF_COMPARE_FILTER}")
     endif()
     add_custom_target(${target}_compare
-        COMMAND ${Python3_EXECUTABLE} "${check}" compare ${compare_args}
+        COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" compare ${compare_args}
         DEPENDS ${target} USES_TERMINAL VERBATIM)
 
     # Deterministic metrics (exact or maximum values; no timing): a ctest test and an accept target.
@@ -220,7 +246,7 @@ function(sub0perf_add_benchmark target)
         endif()
         set(metrics_out "${CMAKE_BINARY_DIR}/perf/${target}.metrics.json")
         add_test(NAME ${target}_metrics
-                 COMMAND ${Python3_EXECUTABLE} "${check}" metrics --exe $<TARGET_FILE:${target}> --spec "${metrics_spec}"
+                 COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" metrics --exe $<TARGET_FILE:${target}> --spec "${metrics_spec}"
                          --out "${metrics_out}")
         set_tests_properties(${target}_metrics PROPERTIES LABELS "smoke")
         # Without SUB0PERF_ACCEPT_METRIC the failing and new metrics are accepted (--all-changed), never an xfail one; naming a
@@ -232,7 +258,7 @@ function(sub0perf_add_benchmark target)
             set(accept_which --all-changed)
         endif()
         add_custom_target(${target}_metrics_accept
-            COMMAND ${Python3_EXECUTABLE} "${check}" accept --exe $<TARGET_FILE:${target}> --spec "${metrics_spec}"
+            COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" accept --exe $<TARGET_FILE:${target}> --spec "${metrics_spec}"
                     --out "${metrics_out}" ${accept_which}
             DEPENDS ${target} USES_TERMINAL VERBATIM)
     endif()
@@ -280,9 +306,9 @@ function(sub0perf_add_benchmark target)
             list(APPEND pin_args --pin "${pin}")
         endforeach()
         execute_process(
-            COMMAND ${Python3_EXECUTABLE} "${check}" install-hooks --repo "${PROJECT_SOURCE_DIR}" --build-dir "${CMAKE_BINARY_DIR}"
+            COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" install-hooks --repo "${PROJECT_SOURCE_DIR}" --build-dir "${CMAKE_BINARY_DIR}"
                     --target ${target} --exe "${hook_exe}" --baseline "${baseline}" --config "${hook_config}" ${pin_args}
-                    --full-refs "${SUB0PERF_FULL_REFS}" --quick-budget ${SUB0PERF_QUICK_BUDGET} ${hook_keep}
+                    --platform-dir "${SUB0PERF_PLATFORM_PYTHON}" --full-refs "${SUB0PERF_FULL_REFS}" --quick-budget ${SUB0PERF_QUICK_BUDGET} ${hook_keep}
             RESULT_VARIABLE hook_result)
         if(NOT hook_result EQUAL 0)
             message(WARNING "sub0perf: installing the git hooks failed (${hook_result})")
@@ -292,7 +318,7 @@ function(sub0perf_add_benchmark target)
     foreach(analysis vtune-hotspots vtune-uarch advisor-roofline perf-record)
         string(REPLACE "-" "_" suffix "${analysis}")
         add_custom_target(${target}_${suffix}
-            COMMAND ${Python3_EXECUTABLE} "${profile}" ${analysis} --exe $<TARGET_FILE:${target}>
+            COMMAND ${host_env} ${Python3_EXECUTABLE} "${profile}" ${analysis} --exe $<TARGET_FILE:${target}>
                     --filter "${SUB0PERF_PROFILE_FILTER}" --seconds ${SUB0PERF_PROFILE_SECONDS}
                     --out "${CMAKE_BINARY_DIR}/profiles"
             DEPENDS ${target} USES_TERMINAL VERBATIM)

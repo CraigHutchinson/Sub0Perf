@@ -262,6 +262,7 @@ def main():
                              "(default 300; 0 = no limit): without --filter a longer planned run is refused")
     parser.add_argument("--full-refs", action="append", default=[], metavar="PATTERNS",
                         help="install-hooks: comma-separated tag-name patterns whose push selects the full level (default v*,milestone/*)")
+    parser.add_argument("--platform-dir", metavar="DIR", help="install-hooks: Sub0Platform's python/ directory, recorded so a git hook can import sub0platform")
     parser.add_argument("--keep-existing", action="store_true",
                         help="install-hooks: leave the gate pointing at the build directory it already uses while that one exists "
                              "(the CMake AUTO mode; an explicit ON or a hand-run install-hooks takes over)")
