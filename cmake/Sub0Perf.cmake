@@ -86,6 +86,28 @@ if(NOT DEFINED SUB0PERF_PINS AND DEFINED SUB0MATH_PERF_PINS)
 endif()
 # The compare and accept targets declare their settings in sub0perf_add_benchmark, through the same macro.
 
+# Sub0Platform's Python package (processes: launch, alive, terminate): fetched at a pinned tag, download only, and its python/ directory
+# recorded for the tooling, which stays standard-library only (nothing is pip-installed; platform_path.py puts the directory on sys.path).
+# SUB0PERF_PLATFORM_TAG moves the pin; a consumer that already fetched Sub0Platform sets Sub0Platform_SOURCE_DIR first and it is reused.
+# Development: follows Sub0Platform main, so a break shows early; pin a release tag (v0.2.0 exists) once the interfaces settle.
+set(SUB0PERF_PLATFORM_TAG "main" CACHE STRING "Sub0Platform branch or tag whose Python package the tooling uses")
+if(NOT DEFINED Sub0Platform_SOURCE_DIR)
+    if(COMMAND CPMAddPackage)
+        CPMAddPackage(NAME Sub0Platform
+            GITHUB_REPOSITORY CraigHutchinson/Sub0Platform
+            GIT_TAG ${SUB0PERF_PLATFORM_TAG}
+            DOWNLOAD_ONLY YES)
+    else()
+        include(FetchContent)
+        FetchContent_Declare(Sub0Platform GIT_REPOSITORY https://github.com/CraigHutchinson/Sub0Platform.git
+            GIT_TAG ${SUB0PERF_PLATFORM_TAG} SOURCE_SUBDIR no-cmake-here)
+        FetchContent_MakeAvailable(Sub0Platform)
+        set(Sub0Platform_SOURCE_DIR "${sub0platform_SOURCE_DIR}")  # FetchContent names it in lower case
+    endif()
+endif()
+set(SUB0PERF_PLATFORM_PYTHON "${Sub0Platform_SOURCE_DIR}/python")
+file(WRITE "${CMAKE_BINARY_DIR}/sub0perf_platform_dir.txt" "${SUB0PERF_PLATFORM_PYTHON}")
+
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0perf_tooling_dir.txt)/profile.py" ...`.
 # CPM may place Sub0Perf anywhere, so consumers should not hard-code the path.
 get_filename_component(_sub0perf_tooling_dir "${CMAKE_CURRENT_LIST_DIR}/../tools/perf" ABSOLUTE)
@@ -282,7 +304,7 @@ function(sub0perf_add_benchmark target)
         execute_process(
             COMMAND ${Python3_EXECUTABLE} "${check}" install-hooks --repo "${PROJECT_SOURCE_DIR}" --build-dir "${CMAKE_BINARY_DIR}"
                     --target ${target} --exe "${hook_exe}" --baseline "${baseline}" --config "${hook_config}" ${pin_args}
-                    --full-refs "${SUB0PERF_FULL_REFS}" --quick-budget ${SUB0PERF_QUICK_BUDGET} ${hook_keep}
+                    --platform-dir "${SUB0PERF_PLATFORM_PYTHON}" --full-refs "${SUB0PERF_FULL_REFS}" --quick-budget ${SUB0PERF_QUICK_BUDGET} ${hook_keep}
             RESULT_VARIABLE hook_result)
         if(NOT hook_result EQUAL 0)
             message(WARNING "sub0perf: installing the git hooks failed (${hook_result})")

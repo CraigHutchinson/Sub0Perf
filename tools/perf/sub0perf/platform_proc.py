@@ -1,10 +1,16 @@
-"""Operating-system specifics: CPU pinning, priority, launching a measurement, pid checks, CPU time counters."""
+"""Operating-system specifics: the pin CPU, and the machine-wide CPU time counters (which move to Sub0Platform's host module).
+
+Process launching and pid checks are Sub0Platform's `proc`; this module keeps the policy around them."""
 
 import ctypes
 import os
-import subprocess
 import sys
 from pathlib import Path
+
+from . import platform_path
+
+platform_path.ensure()  # puts Sub0Platform's python/ on sys.path (it is fetched at configure time, not installed)
+from sub0platform import proc as sub0platform_proc  # noqa: E402
 
 _pin_cpu = None  # run every measurement on this one logical CPU (None = unpinned)
 
@@ -26,32 +32,13 @@ def resolve_pin_cpu(option):
 
 
 def launch(cmd, timeout=None):
-    """Starts a measurement process at raised priority, pinned to the pin CPU when set, and waits for it.
+    """Starts a measurement process at raised priority, pinned to the pin CPU when set, and waits for it (Sub0Platform's proc.launch).
 
     Pinning stops the scheduler moving the benchmark between cores mid-run (cold caches, different clocks);
     raised priority keeps ordinary background work from preempting it. With `timeout` (seconds) a process still running
     after that long is killed and subprocess.TimeoutExpired is raised.
     """
-    if sys.platform == "win32":
-        high_priority = 0x00000080  # HIGH_PRIORITY_CLASS
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=high_priority)
-        if _pin_cpu is not None:
-            ctypes.windll.kernel32.SetProcessAffinityMask(int(proc._handle), ctypes.c_size_t(1 << _pin_cpu))
-        try:
-            code = proc.wait(timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-            raise
-    else:
-        cpu = _pin_cpu
-
-        def pin():
-            if cpu is not None and hasattr(os, "sched_setaffinity"):
-                os.sched_setaffinity(0, {cpu})
-        code = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=pin, timeout=timeout).returncode
-    if code != 0:
-        raise subprocess.CalledProcessError(code, cmd)
+    sub0platform_proc.launch(cmd, timeout=timeout, cpu=_pin_cpu)
 
 
 def cpu_times():
@@ -76,26 +63,4 @@ def cpu_times():
 
 def pid_alive(pid):
     """Whether a process with this id exists (never signals it: os.kill would terminate it on Windows)."""
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        kernel = ctypes.windll.kernel32
-        kernel.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
-        kernel.OpenProcess.restype = ctypes.c_void_p
-        kernel.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
-        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel.OpenProcess(0x1000, 0, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return kernel.GetLastError() == 5  # access denied: it exists
-        try:
-            code = ctypes.c_ulong()
-            return bool(kernel.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
-        finally:
-            kernel.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return sub0platform_proc.alive(pid) if pid > 0 else False

@@ -3,7 +3,8 @@
 Modules, lowest layer first:
 
   common         constants, benchmark grouping, atomic file writes
-  platform_proc  OS specifics: CPU pinning, priority, process launch, pid checks, CPU time counters
+  platform_path  finding Sub0Platform's python/ directory (fetched at configure time) and putting it on sys.path
+  platform_proc  the pin CPU and the machine CPU time counters; process launch and pid checks are Sub0Platform's proc
   load           system load sampling and waiting for a quiet machine
   stats          robust CV, calibration-scaled medians, pair ratios
   baseline       sample-record and baseline formats: build, read, write
