@@ -13,12 +13,8 @@ sub0perf_add_benchmark(MyLibrary_Bench bench_my_library.cpp)    # plus _json/_ch
 which the tooling does not install: configuring fetches Sub0Platform with CPM (`DOWNLOAD_ONLY`, under the package name `Sub0PerfPlatform`, so a consumer's own Sub0Platform pin and `SOURCE_SUBDIR` never collide with it) at the release tag `SUB0PERF_PLATFORM_TAG` (default `v0.2.0`). To use a local checkout instead, set the environment variable `CPM_Sub0Platform_SOURCE` to its directory (CPM's own override); a copy older than 0.2.0 (no `proc.launch`) stops the configure. The CMake targets pass its `python/` directory to the tooling as `SUB0PERF_PLATFORM_DIR`, `install-hooks --platform-dir` records it in `.git/sub0perf/config.json` (`platform_python`) so a git hook finds it, and `platform_path.py` puts it on `sys.path`. Lookup order: an importable `sub0platform`, `SUB0PERF_PLATFORM_DIR`, the git config. With none the command stops with one line naming the configure step. Running `bench_check.py` by hand in a repository whose hooks are not installed needs `SUB0PERF_PLATFORM_DIR` set. The machine-wide power and clock readings (`power.py`, `speed.py`, `cpu_times`) stay here until Sub0Platform's host module exists.
 
 **Names.** The CMake functions are `sub0perf_add_benchmark`, `sub0perf_target_perf_options`, `sub0perf_add_test` and
-`sub0perf_label_full_tests`; the variables are `SUB0PERF_*` (`SUB0MATH_PERF_X` became `SUB0PERF_X`, and every other `SUB0MATH_Y` became
-`SUB0PERF_Y`: `SUB0PERF_ON_BUILD`, `SUB0PERF_GIT_HOOKS`, `SUB0PERF_QUICK_BUDGET`, `SUB0PERF_HOST`, `SUB0PERF_SKIP`,
-`SUB0PERF_COMPARE_AGAINST`, `SUB0PERF_PROFILE_FILTER`, and so on). For one release the old names still work: the old functions forward
-with a CMake `DEPRECATION` message, an old CMake variable is used when its new name is not given (the new name wins; in a build directory
-that already holds a default for the new name, pass the new name or `-U` it), an old environment variable is read when its new name is
-not set (silently), and the tooling record is written under both `sub0perf_tooling_dir.txt` and `sub0math_tooling_dir.txt`. Variables
+`sub0perf_label_full_tests`; the variables are `SUB0PERF_*` (`SUB0PERF_ON_BUILD`, `SUB0PERF_GIT_HOOKS`, `SUB0PERF_QUICK_BUDGET`, `SUB0PERF_HOST`, `SUB0PERF_SKIP`,
+`SUB0PERF_COMPARE_AGAINST`, `SUB0PERF_PROFILE_FILTER`, and so on). The `sub0math_*` functions and `SUB0MATH_*` variables of 0.2.x (read as fallbacks for one release) were removed in v0.3.0. Variables
 that belong to Sub0Math itself (`SUB0MATH_BUILD_BENCHMARKS`) are unchanged. Configuring writes the scripts' location to `<build>/sub0perf_tooling_dir.txt`, so
 shells and CI can run them without knowing where CPM put Sub0Perf. Benchmarks include `<bench_runner.hpp>` and accept
 `--filter` (case-insensitive substring), `--json`, `--soak <seconds>` (loop under a profiler) and `--list`.

@@ -15,7 +15,7 @@ from .pins import parse_pin
 
 HOOK_MARK = "# sub0perf hook"
 PREVIOUS_SUFFIX = ".user"  # a foreign hook that was in the way is renamed to <hook>.user and run first
-MODE_VAR = "SUB0MATH_PERF_HOOK_MODE"  # "chain": never write into git's hooks directory; keep ours in .git/sub0perf/hooks and print the line
+MODE_VAR = "SUB0PERF_HOOK_MODE"  # "chain": never write into git's hooks directory; keep ours in .git/sub0perf/hooks and print the line
 CHAIN_DIR = "hooks"  # under .git/sub0perf
 HOOK_COMMENTS = {"pre-push": "performance regression gate (tools/perf/bench_check.py gate)",
                  "post-checkout": "notes the checkout; the first clean build records its measurement"}
@@ -81,7 +81,6 @@ def chain_line(name):
 
 GATE_CALL_RE = re.compile(r'bench_check\.py"?\s+gate\b')
 TOOLING_RECORD = "sub0perf_tooling_dir.txt"  # written by the configure step into the build directory: the tooling's location
-OLD_TOOLING_RECORD = "sub0math_tooling_dir.txt"  # the name before the rename; still written, and read, for one release
 TOOLING_ENV = "SUB0PERF_TOOLING_DIR"  # overrides the record
 
 
@@ -97,7 +96,7 @@ def tooling_dirs(repo, environ=None):
     `build/*/` (a preset's build directory is build/<preset>)."""
     environ = os.environ if environ is None else environ
     found = [Path(environ[TOOLING_ENV].strip())] if environ.get(TOOLING_ENV, "").strip() else []
-    records = {p for name in (TOOLING_RECORD, OLD_TOOLING_RECORD) for pattern in (f"build*/{name}", f"build/*/{name}")
+    records = {p for name in (TOOLING_RECORD,) for pattern in (f"build*/{name}", f"build/*/{name}")
                for p in Path(repo).glob(pattern)}
     for record in sorted(records, key=lambda p: p.stat().st_mtime, reverse=True):
         try:
@@ -141,7 +140,7 @@ def install_hooks_command(args):
     held = config["targets"].get(args.target)
     if getattr(args, "keep_existing", False) and held and Path(held.get("build_dir", "")).resolve() != Path(args.build_dir).resolve()             and Path(held.get("build_dir", "")).is_dir():
         print(f"sub0perf: the gate for {args.target} keeps using {held['build_dir']}; {args.build_dir} left it alone "
-              f"(SUB0MATH_PERF_GIT_HOOKS=ON, or bench_check.py install-hooks, takes it over)")
+              f"(SUB0PERF_GIT_HOOKS=ON, or bench_check.py install-hooks, takes it over)")
         return 0
     config["targets"][args.target] = {"build_dir": str(Path(args.build_dir).resolve()), "exe": str(Path(args.exe).resolve()),
                                       "baseline": str(Path(args.baseline).resolve()), "config": args.config or ""}

@@ -193,7 +193,7 @@ class StateTest(unittest.TestCase):
     def test_the_deferral_names_the_ratio_the_causes_and_the_override(self):
         slow = power.with_speed(power.PowerState(power.AC), 1.88, 1.4)
         text = power.deferral_text(slow, False)
-        for part in ("1.88x slower", "vendor power mode", "charging power cap", "thermal", "SUB0MATH_PERF_ON_BATTERY=1",
+        for part in ("1.88x slower", "vendor power mode", "charging power cap", "thermal", "SUB0PERF_ON_BATTERY=1",
                      "performance not measured"):
             self.assertIn(part, text)
         self.assertIn("refused", power.deferral_text(slow, True))
@@ -289,7 +289,7 @@ class GateTest(RepoTestCase):
         self.assertEqual(code, 0)
         self.assertIn("machine throttled (calibration 1.88x slower than the baseline's)", out)
         self.assertIn("vendor power mode", out)
-        self.assertIn("To measure anyway: set SUB0MATH_PERF_ON_BATTERY=1", out)
+        self.assertIn("To measure anyway: set SUB0PERF_ON_BATTERY=1", out)
         pending = deferral.load(self.perf)
         self.assertIn("throttled", pending[0]["reason"])
         self.assertIn("power-deferred", self.events())

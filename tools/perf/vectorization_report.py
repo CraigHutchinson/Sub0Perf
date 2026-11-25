@@ -3,7 +3,7 @@
 
   vectorization_report.py --build-dir build-vec [--target <t>] [--source-root .] [--output vec.md]
 
-Configure the build directory with the `vectorization` preset (SUB0MATH_VECTORIZATION_REPORT=ON),
+Configure the build directory with the `vectorization` preset (SUB0PERF_VECTORIZATION_REPORT=ON),
 which turns on GCC -fopt-info-vec-*, Clang -Rpass*=loop-vectorize|slp-vectorizer, or MSVC
 /Qvec-report:2. The build is run clean so every remark is emitted, then remarks are grouped by file
 and line, keeping only files under --source-root (vendored and system headers are dropped).

@@ -24,7 +24,7 @@ import sys
 import types
 from pathlib import Path
 
-from . import accept, deferral, envnames, gate, hooks, levels, plan as planning, power, speed
+from . import accept, deferral, gate, hooks, levels, plan as planning, power, speed
 from .common import read_json, tooling_script
 from .gitstate import git, git_head, perf_dir
 from .lock import PerfLock
@@ -58,7 +58,7 @@ def check_hook(repo, name, required):
     """Rows for one installed hook.
 
     A hook directory inside the worktree (core.hooksPath, for example `.githooks`: tracked, so never written by install-hooks)
-    or SUB0MATH_PERF_HOOK_MODE=chain keeps ours in .git/sub0perf/hooks, run by one line of the committed hook: that line must be
+    or SUB0PERF_HOOK_MODE=chain keeps ours in .git/sub0perf/hooks, run by one line of the committed hook: that line must be
     there, and the copy must be what install-hooks writes. Or the committed hook runs `bench_check.py gate --refs-from-stdin`
     itself (the shared template's perf stanza): the other valid wiring, and the one for a hook that reads stdin itself.
     """
@@ -337,7 +337,7 @@ def check_power_decisions(repo, update, budget, config=None):
             ("throttled mains in strict mode fails", "ac", {speed.FAKE_VAR: "1.88", power.STRICT_VAR: "1"}, "refused-power", 1),
             ("throttled mains with the override measures", "ac", {speed.FAKE_VAR: "1.88", power.OVERRIDE_VAR: "1"}, "measure", 0),
             ("just under the limit (1.39x) measures", "ac", {speed.FAKE_VAR: "1.39"}, "measure", 0),
-            ("a raised limit (SUB0MATH_PERF_THROTTLE_RATIO=2) measures 1.88x", "ac",
+            ("a raised limit (SUB0PERF_THROTTLE_RATIO=2) measures 1.88x", "ac",
              {speed.FAKE_VAR: "1.88", speed.LIMIT_VAR: "2"}, "measure", 0)):
         try:
             code, outcome, _, output = drive(repo, update, code_paths, budget, fake, **switches)
@@ -423,8 +423,7 @@ def check_lock(repo):
 def run_selftest(repo, target=None, budget=None):
     """All rows for `repo`."""
     rows = []
-    environment = sorted({new for new, old in envnames.PAIRS if new in ("SUB0PERF_SKIP", "SUB0PERF_PINS_SKIP")
-                          and (os.environ.get(new) or os.environ.get(old))})
+    environment = [name for name in ("SUB0PERF_SKIP", "SUB0PERF_PINS_SKIP") if os.environ.get(name)]
     if environment:
         rows.append((WARN, "environment", f"{', '.join(environment)} is set: the real gate would be bypassed (not applied in this test)"))
     rows += check_hook(repo, "pre-push", required=True)

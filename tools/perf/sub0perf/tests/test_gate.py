@@ -13,11 +13,11 @@ class GateSkipTest(RepoTestCase):
     def test_skip_bypasses_and_is_logged(self):
         git_run(self.repo, "commit", "-q", "--allow-empty", "-m", "one")
         args = type("A", (), {"repo": str(self.repo)})
-        os.environ["SUB0MATH_PERF_SKIP"] = "emergency fix"
+        os.environ["SUB0PERF_SKIP"] = "emergency fix"
         try:
             self.assertEqual(gate.gate_command(args), 0)
         finally:
-            del os.environ["SUB0MATH_PERF_SKIP"]
+            del os.environ["SUB0PERF_SKIP"]
         log = (gitstate.perf_dir(self.repo) / "log.jsonl").read_text(encoding="utf-8")
         self.assertIn("emergency fix", log)
         self.assertIn('"skip"', log)

@@ -40,7 +40,7 @@ class AtomicWriteTest(unittest.TestCase):
 
 
 class HostNameTest(unittest.TestCase):
-    """SUB0MATH_PERF_HOST is the name the baseline file carries; records and baselines record it, not the machine's own name."""
+    """SUB0PERF_HOST is the name the baseline file carries; records and baselines record it, not the machine's own name."""
 
     def setUp(self):
         patch = mock.patch.dict(os.environ)

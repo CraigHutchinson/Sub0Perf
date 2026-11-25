@@ -110,13 +110,13 @@ class DiagnosticsTest(unittest.TestCase):
         text = power.deferral_text(BATTERY, strict=False)
         self.assertIn("on battery: performance not measured", text)
         self.assertIn("the next push on mains measures against the unchanged baseline", text)
-        self.assertIn("To measure anyway: set SUB0MATH_PERF_ON_BATTERY=1. Results are flagged and can't become a baseline.", text)
+        self.assertIn("To measure anyway: set SUB0PERF_ON_BATTERY=1. Results are flagged and can't become a baseline.", text)
 
     def test_strict_hint_names_the_override_and_how_to_turn_strict_off(self):
         text = power.deferral_text(BATTERY, strict=True)
         self.assertIn("refused", text)
-        self.assertIn("SUB0MATH_PERF_ON_BATTERY=1", text)
-        self.assertIn("unset SUB0MATH_PERF_POWER_STRICT", text)
+        self.assertIn("SUB0PERF_ON_BATTERY=1", text)
+        self.assertIn("unset SUB0PERF_POWER_STRICT", text)
         self.assertIn("strict_power", text)
 
     def test_policy_reads_environment_and_config(self):
@@ -172,7 +172,7 @@ class GateDecisionTest(RepoTestCase):
         code, out = self.gate("battery")
         self.assertEqual(code, 0)
         self.assertIn("on battery: performance not measured", out)
-        self.assertIn("To measure anyway: set SUB0MATH_PERF_ON_BATTERY=1", out)
+        self.assertIn("To measure anyway: set SUB0PERF_ON_BATTERY=1", out)
         pending = deferral.load(self.perf)
         self.assertEqual(len(pending), 1)
         self.assertEqual(pending[0]["head"], self.head)
@@ -193,8 +193,8 @@ class GateDecisionTest(RepoTestCase):
     def test_strict_fails_with_hints_and_defers_nothing(self):
         code, out = self.gate("battery", **{power.STRICT_VAR: "1"})
         self.assertEqual(code, 1)
-        self.assertIn("SUB0MATH_PERF_ON_BATTERY=1", out)
-        self.assertIn("unset SUB0MATH_PERF_POWER_STRICT", out)
+        self.assertIn("SUB0PERF_ON_BATTERY=1", out)
+        self.assertIn("unset SUB0PERF_POWER_STRICT", out)
         self.assertIn("strict power mode", out)
         self.assertEqual(deferral.load(self.perf), [])
         self.assertIn("power-refused", self.events())

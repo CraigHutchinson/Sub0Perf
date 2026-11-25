@@ -45,7 +45,7 @@ class RepoTestCase(unittest.TestCase):
         # A hook runs with GIT_DIR set; a temporary repository must not inherit it (it would act on the hook's own repository).
         for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
             os.environ.pop(name, None)
-        for name in ("SUB0MATH_PERF_ON_BATTERY", "SUB0MATH_PERF_POWER_STRICT"):
+        for name in ("SUB0PERF_ON_BATTERY", "SUB0PERF_POWER_STRICT"):
             os.environ.pop(name, None)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

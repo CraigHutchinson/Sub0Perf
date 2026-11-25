@@ -47,7 +47,7 @@ class SelectLevelTest(unittest.TestCase):
         self.assertEqual(levels.select_level(None, None, tag, PATTERNS)[0], "full")         # refs beat default
         self.assertEqual(levels.select_level("full", "quick", [], PATTERNS)[0], "full")
         self.assertIn("--level", levels.select_level("full", None, [], PATTERNS)[1])
-        self.assertIn("SUB0MATH_PERF_LEVEL", levels.select_level(None, "full", [], PATTERNS)[1])
+        self.assertIn("SUB0PERF_LEVEL", levels.select_level(None, "full", [], PATTERNS)[1])
 
     def test_unknown_level_is_an_error(self):
         with self.assertRaises(ValueError):
@@ -74,7 +74,7 @@ class ResolveTest(unittest.TestCase):
         levels.resolve(args, [push("refs/tags/v2")], {"quick_budget": 50}, environ={})
         self.assertEqual((args.level, args.budget_seconds), ("full", None))
         args = types.SimpleNamespace(level=None, budget=None)
-        levels.resolve(args, [], {"quick_budget": 50}, environ={"SUB0MATH_PERF_LEVEL": "quick"})
+        levels.resolve(args, [], {"quick_budget": 50}, environ={"SUB0PERF_LEVEL": "quick"})
         self.assertEqual((args.level, args.budget_seconds), ("quick", 50.0))
 
 

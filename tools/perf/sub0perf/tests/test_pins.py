@@ -221,12 +221,12 @@ class GatePinsTest(RepoTestCase):
 
     def test_the_performance_skip_does_not_skip_the_pin_check(self):
         head = self.commit_pin(self.unpushed)
-        with mock.patch.dict(os.environ, {"SUB0MATH_PERF_SKIP": "flaky"}):
+        with mock.patch.dict(os.environ, {"SUB0PERF_SKIP": "flaky"}):
             self.assertEqual(self.gate(head)[0], 1)
 
     def test_the_pin_skip_is_logged(self):
         head = self.commit_pin(self.unpushed)
-        with mock.patch.dict(os.environ, {"SUB0MATH_PINS_SKIP": "pushed from another machine"}):
+        with mock.patch.dict(os.environ, {"SUB0PERF_PINS_SKIP": "pushed from another machine"}):
             self.assertEqual(self.gate(head)[0], 0)
         self.assertIn("pins-skip", (gitstate.perf_dir(self.repo) / "log.jsonl").read_text(encoding="utf-8"))
 

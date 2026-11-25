@@ -7,6 +7,6 @@ tests, documentation, issues and pull requests; no product names, and never name
 - Scope: statistics, verdicts, baselines, gates, hooks and profiler glue. Host mechanism (processes, locks, directories,
   topology) belongs in Sub0Platform; the maths belongs in Sub0Math.
 - **Changes here affect every consumer** (every library that benchmarks, through CPM). Keep names, command lines, file
-  formats and schemas stable; the names are `sub0perf_*` / `SUB0PERF_*`; the old `sub0math_*` / `SUB0MATH_*` ones are read as fallbacks for one release (docs/PERFORMANCE.md, "Names").
+  formats and schemas stable; the names are `sub0perf_*` / `SUB0PERF_*`; the old `sub0math_*` / `SUB0MATH_*` ones were removed in v0.3.0 (docs/PERFORMANCE.md, "Names").
 - Standard library only for the Python; tests use synthetic samples, records and temporary git repositories.
 - Read [docs/PERFORMANCE.md](docs/PERFORMANCE.md) before changing the gate or its output.

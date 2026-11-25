@@ -174,11 +174,11 @@ class DecisionTest(SelftestCase):
     def test_bypass_variables_and_a_dirty_tree_do_not_change_decisions(self):
         self.costs()
         (self.repo / "f.txt").write_text("dirty", encoding="utf-8")
-        os.environ["SUB0MATH_PERF_SKIP"] = "x"
+        os.environ["SUB0PERF_SKIP"] = "x"
         try:
             rows = self.rows()
         finally:
-            del os.environ["SUB0MATH_PERF_SKIP"]
+            del os.environ["SUB0PERF_SKIP"]
         self.assertEqual(rows["gate: code range tgt"][0], st.PASS)
         self.assertEqual(rows["environment"][0], st.WARN)
 
@@ -277,7 +277,7 @@ refs=''
 while read -r local_ref local_sha remote_ref remote_sha; do refs+="$local_ref $local_sha $remote_ref $remote_sha"$'\n'; done
 tooling="${SUB0PERF_TOOLING_DIR:-}"
 if [ -z "$tooling" ]; then
-    for record in $(ls -t build*/sub0math_tooling_dir.txt build/*/sub0math_tooling_dir.txt 2>/dev/null); do
+    for record in $(ls -t build*/sub0perf_tooling_dir.txt build/*/sub0perf_tooling_dir.txt 2>/dev/null); do
         tooling="$(cat "$record")"; break
     done
 fi
@@ -295,7 +295,7 @@ class DirectGateWiringTest(TrackedHooksSelftestTest):
         self.install_quietly()
 
     def record_tooling(self, *parts):
-        record = self.repo.joinpath(*parts, "sub0math_tooling_dir.txt")
+        record = self.repo.joinpath(*parts, "sub0perf_tooling_dir.txt")
         record.parent.mkdir(parents=True, exist_ok=True)
         record.write_text(common.tooling_script().parent.as_posix(), encoding="utf-8")
 

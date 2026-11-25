@@ -26,14 +26,14 @@ def check_pins(repo, config, refs):
     """Refuses a push whose pinned dependency commits are not on the dependencies' remotes. True when the push may go on.
 
     Runs before everything else, also when the performance gate is bypassed or the push is documentation only (a pin
-    file is not documentation): `SUB0MATH_PINS_SKIP=<reason>` bypasses it, logged.
+    file is not documentation): `SUB0PERF_PINS_SKIP=<reason>` bypasses it, logged.
     """
     pins = config.get("pins", [])
     if not pins or not pushed_refs(refs):
         return True
-    reason = os.environ.get("SUB0MATH_PINS_SKIP")
+    reason = os.environ.get("SUB0PERF_PINS_SKIP")
     if reason:
-        print(f"sub0perf: dependency pin check skipped (SUB0MATH_PINS_SKIP={reason})")
+        print(f"sub0perf: dependency pin check skipped (SUB0PERF_PINS_SKIP={reason})")
         log_event(repo, {"event": "pins-skip", "reason": reason})
         return True
     problems, warnings = pin_problems(repo, pins, refs, lambda remote, local: changed_paths_between(repo, remote, local),
@@ -46,7 +46,7 @@ def check_pins(repo, config, refs):
         print("sub0perf: push refused: a pinned dependency is not on its remote:")
         for problem in problems:
             print(f"  - {problem}")
-        print("  (SUB0MATH_PINS_SKIP=<reason> bypasses this check and logs the reason; git push --no-verify skips all hooks)")
+        print("  (SUB0PERF_PINS_SKIP=<reason> bypasses this check and logs the reason; git push --no-verify skips all hooks)")
         log_event(repo, {"event": "pins-refused", "problems": problems})
         return False
     return True
@@ -67,9 +67,9 @@ def gate_command(args):
     log = (lambda *_: None) if plan_only else (lambda event: log_event(repo, event))
     if config and not plan_only and not check_pins(repo, config, refs):
         return 1
-    skip = None if plan_only else os.environ.get("SUB0MATH_PERF_SKIP")
+    skip = None if plan_only else os.environ.get("SUB0PERF_SKIP")
     if skip:
-        print(f"sub0perf: pre-push gate skipped (SUB0MATH_PERF_SKIP={skip})")
+        print(f"sub0perf: pre-push gate skipped (SUB0PERF_SKIP={skip})")
         log({"event": "skip", "commit": git_head(repo), "reason": skip})
         args.outcome = "skip-env"
         return 0
@@ -100,7 +100,7 @@ def gate_command(args):
             print("sub0perf: push refused by the performance gate:")
             for problem in problems:
                 print(f"  - {problem}")
-            print("  (SUB0MATH_PERF_SKIP=<reason> bypasses the gate and logs the reason; git push --no-verify skips all hooks)")
+            print("  (SUB0PERF_SKIP=<reason> bypasses the gate and logs the reason; git push --no-verify skips all hooks)")
             log({"event": "gate-refused", "commit": head, "problems": problems})
             args.outcome = "refused"
             return 1
@@ -252,7 +252,7 @@ def target_problem(repo, target):
     other = foreign_worktree(repo, build_dir)
     if other:
         return (f"the gate is configured for {build_dir}, in another worktree ({other}), so it would measure that "
-                f"code, not this push; push from {other}, or reconfigure the build directory there (SUB0MATH_PERF_SKIP=<reason> bypasses)")
+                f"code, not this push; push from {other}, or reconfigure the build directory there (SUB0PERF_SKIP=<reason> bypasses)")
     return None
 
 
@@ -274,7 +274,7 @@ def run_gate(args, repo, d, config_path, head, clean):
         command = ["cmake", "--build", t["build_dir"], "--target", target] + (["--config", t["config"]] if t.get("config") else [])
         # A hook runs with GIT_DIR set; a configure that inherits it can write core.bare and core.hooksPath into the shared config.
         env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")}
-        build = subprocess.run(command, env={**env, "SUB0MATH_PERF_SKIP": "1"})
+        build = subprocess.run(command, env={**env, "SUB0PERF_SKIP": "1"})
         if build.returncode != 0:
             print(f"sub0perf: building {target} failed; push blocked")
             blocked.append(target)
@@ -294,7 +294,7 @@ def run_gate(args, repo, d, config_path, head, clean):
         samples, meta, positions, counters = measure_all(exe, args, names=chosen, rounds=rounds, timings=timings)
         record = make_record(exe, samples, meta, positions, counters, args.epochs, args.seed, power_now)
         record["level"] = args.level
-        if power_now.untrusted:  # only under SUB0MATH_PERF_ON_BATTERY: never a baseline, and every report says so
+        if power_now.untrusted:  # only under SUB0PERF_ON_BATTERY: never a baseline, and every report says so
             record["power_override"] = True
         record["unmeasured"] = sorted(set(all_names) - set(chosen))
         args.baseline = t["baseline"]
