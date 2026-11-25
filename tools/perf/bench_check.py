@@ -10,6 +10,7 @@ noise, and paired comparisons with hand-written references.
   bench_check.py compare  --exe NEW (--against OLD | --kept [SHA]) [--filter TEXT] [--rounds 10]       (interleaved A/B of two builds, >= 10 rounds)
   bench_check.py metrics  --spec perf/metrics.json (--results metrics.json | --exe BENCH)                (exact/max/xfail; no timing)
   bench_check.py accept   --spec perf/metrics.json (--results F | --exe BENCH) --metric NAME ... --reason TEXT   (logged, like a baseline)
+  bench_check.py topology [--format json]                                   (physical core siblings; no timing)
   bench_check.py gate     [--repo DIR] [--confirm-rounds 4]                      (the pre-push hook; reads .git/sub0perf/config.json)
   bench_check.py install-hooks --repo DIR --build-dir DIR --target NAME --exe PATH --baseline PATH
 

@@ -80,7 +80,7 @@ endif()
 # SUB0PERF_PLATFORM_DIR (the CMake targets set it) and `.git/sub0perf/config.json` (install-hooks records it, so a git hook finds it).
 # Locally, set the environment variable CPM_Sub0Platform_SOURCE (or the cache variable) to a Sub0Platform checkout's root to use it
 # instead of the pinned commit. The override must provide proc.launch and sub0platform.lease.
-set(SUB0PERF_PLATFORM_TAG "2823cf3e2cbd9f702dc2b7e988a58756e57c1ba9" CACHE STRING "Sub0Platform revision whose Python package the tooling uses")
+set(SUB0PERF_PLATFORM_TAG "cbbf0eb43d49f7ce667fa70731366e6368ca3978" CACHE STRING "Sub0Platform revision whose Python package the tooling uses")
 if(NOT COMMAND CPMAddPackage)
     include("${CMAKE_CURRENT_LIST_DIR}/get_cpm.cmake")
 endif()

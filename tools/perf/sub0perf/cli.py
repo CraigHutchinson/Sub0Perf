@@ -10,6 +10,7 @@ noise, and paired comparisons with hand-written references.
   bench_check.py compare  --exe NEW (--against OLD | --kept [SHA]) [--filter TEXT] [--rounds 10]       (interleaved A/B of two builds, >= 10 rounds)
   bench_check.py metrics  --spec perf/metrics.json (--results metrics.json | --exe BENCH)                (exact/max/xfail; no timing)
   bench_check.py accept   --spec perf/metrics.json (--results F | --exe BENCH) --metric NAME ... --reason TEXT   (logged, like a baseline)
+  bench_check.py topology [--format json]                                   (physical core siblings; no timing)
   bench_check.py gate     [--repo DIR] [--level quick|full] [--budget SECONDS] [--confirm-rounds 4]                      (the pre-push hook; reads .git/sub0perf/config.json)
   bench_check.py install-hooks --repo DIR --build-dir DIR --target NAME --exe PATH --baseline PATH  [--pin file=F,var=V,repo=owner/name ...]
 
@@ -83,6 +84,7 @@ still read; they lack calibration and spread, so judging falls back to the suite
 
 import argparse
 import contextlib
+import json
 import os
 import subprocess
 import sys
@@ -130,6 +132,32 @@ def power_command(args):
     for note in power.environment_notes(state, power.policy()):
         print(note)
     return 3 if state.untrusted else 0
+
+
+def topology_command(args):
+    """Report the current affinity domain without launching a benchmark."""
+    try:
+        from sub0platform.topology import readTopology
+    except ModuleNotFoundError as error:
+        if error.name != "sub0platform.topology":
+            raise
+        print("sub0perf: this command needs a Sub0Platform checkout with topology support", file=sys.stderr)
+        return 1
+
+    cores = readTopology()
+    if output.resolve_format(args) == "json":
+        print(json.dumps({"available": cores is not None, "cores": [
+            {"logical_cpus": core.logicalCpus, "performance_class": core.performanceClass}
+            for core in cores or ()
+        ]}))
+    elif cores is None:
+        print("sub0perf: physical CPU topology is unavailable for this affinity domain")
+    else:
+        for core in cores:
+            cpus = ", ".join(map(str, core.logicalCpus))
+            performance_class = "unknown" if core.performanceClass is None else core.performanceClass
+            print(f"logical CPUs {cpus} share one physical core (performance class {performance_class})")
+    return 0
 
 
 def run_command(args):
@@ -268,7 +296,7 @@ def main():
         from .workload import main as workload_main
         return workload_main(sys.argv[2:])
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["run", "check", "baseline", "auto", "accept", "gate", "compare", "metrics", "install-hooks", "note-checkout", "selftest", "power", "workload"])
+    parser.add_argument("command", choices=["run", "check", "baseline", "auto", "accept", "gate", "compare", "metrics", "install-hooks", "note-checkout", "selftest", "power", "topology", "workload"])
     parser.add_argument("--exe", help="benchmark executable (run, auto)")
     parser.add_argument("--out", help="samples file to write (run; optional for auto)")
     parser.add_argument("--results", help="samples file from `run` (check, baseline); metrics file (metrics, accept --metric)")
@@ -303,7 +331,7 @@ def main():
     parser.add_argument("--max-load", type=float, default=0.20, help="busy fraction of all CPUs above which a round waits")
     parser.add_argument("--settle", type=float, default=30.0, help="seconds to wait for load to fall")
     parser.add_argument("--format", choices=list(output.FORMATS), default=None,
-                        help="check, auto, gate, compare, metrics: brief (one verdict line plus a line per change beyond noise), json "
+                        help="topology: json or text (brief, md). check, auto, gate, compare, metrics: brief (one verdict line plus a line per change beyond noise), json "
                              "(schema sub0perf-outcome-1) or md (the full tables). Default: SUB0PERF_OUTPUT, else md")
     parser.add_argument("--out-json", metavar="PATH", help="check, auto, gate, compare, metrics: also write the sub0perf-outcome-1 JSON here, "
                         "whatever --format is (default: SUB0PERF_OUTCOME_JSON); a run with no verdict writes status NO_VERDICT")
@@ -337,6 +365,8 @@ def main():
     parser.add_argument("--cpu", type=int, default=-1,
                         help="logical CPU to pin measurements to (default: the last one; -2 = do not pin)")
     args = parser.parse_args()
+    if args.command == "topology":
+        return topology_command(args)
     if not args.max_rounds:
         args.max_rounds = args.rounds * 2
     needs = {"run": ["exe", "out"], "check": ["results", "baseline"], "baseline": ["results", "baseline"], "auto": ["exe", "baseline"],
