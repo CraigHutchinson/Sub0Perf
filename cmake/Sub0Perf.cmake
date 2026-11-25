@@ -74,13 +74,13 @@ if(DEFINED CACHE{SUB0PERF_GIT_HOOKS})
 endif()
 # The compare and accept targets declare their settings in sub0perf_add_benchmark, through the same macro.
 
-# Sub0Platform's Python package (processes: launch, alive, terminate): fetched with CPM at a pinned release tag, download only, under its
+# Sub0Platform's Python package (processes: launch, alive, terminate): fetched with CPM at a pinned commit, download only, under its
 # own package name (Sub0PerfPlatform) so it never collides with a consumer's own Sub0Platform (another pin, SOURCE_SUBDIR cpp, another
 # add order). The tooling stays standard-library only (nothing is pip-installed): the python/ directory reaches it through
 # SUB0PERF_PLATFORM_DIR (the CMake targets set it) and `.git/sub0perf/config.json` (install-hooks records it, so a git hook finds it).
 # Locally, set the environment variable CPM_Sub0Platform_SOURCE (or the cache variable) to a Sub0Platform checkout's root to use it
-# instead of the tag; a copy that lacks proc.launch (older than 0.2.0) stops the configure.
-set(SUB0PERF_PLATFORM_TAG "v0.2.0" CACHE STRING "Sub0Platform release tag whose Python package the tooling uses")
+# instead of the pinned commit. The override must provide proc.launch and sub0platform.lease.
+set(SUB0PERF_PLATFORM_TAG "2823cf3e2cbd9f702dc2b7e988a58756e57c1ba9" CACHE STRING "Sub0Platform revision whose Python package the tooling uses")
 if(NOT COMMAND CPMAddPackage)
     include("${CMAKE_CURRENT_LIST_DIR}/get_cpm.cmake")
 endif()
@@ -96,13 +96,17 @@ CPMAddPackage(NAME Sub0PerfPlatform
     GIT_TAG ${SUB0PERF_PLATFORM_TAG}
     DOWNLOAD_ONLY YES)
 set(SUB0PERF_PLATFORM_PYTHON "${Sub0PerfPlatform_SOURCE_DIR}/python")
+if(NOT EXISTS "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/lease.py")
+    message(FATAL_ERROR "sub0perf: the configured Sub0Platform lacks sub0platform.lease. Clear an old SUB0PERF_PLATFORM_TAG "
+                        "cache entry or update CPM_Sub0Platform_SOURCE.")
+endif()
 if(EXISTS "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py")
     file(READ "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py" _sub0perf_proc)
 endif()
 string(FIND "${_sub0perf_proc}" "def launch(" _sub0perf_has_launch)
 if(_sub0perf_has_launch EQUAL -1)
     message(FATAL_ERROR "sub0perf: ${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py has no launch(): Sub0Platform is older than 0.2.0 "
-                        "(a CPM_Sub0Platform_SOURCE override); use a newer checkout or the tag ${SUB0PERF_PLATFORM_TAG}")
+                        "(a CPM_Sub0Platform_SOURCE override); use a newer checkout or the revision ${SUB0PERF_PLATFORM_TAG}")
 endif()
 
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0perf_tooling_dir.txt)/profile.py" ...`.
@@ -198,7 +202,7 @@ function(sub0perf_add_benchmark target)
 
     add_custom_target(${target}_json
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/perf"
-        COMMAND $<TARGET_FILE:${target}> --json "${results}"
+        COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" timed-exec -- $<TARGET_FILE:${target}> --json "${results}"
         DEPENDS ${target} USES_TERMINAL VERBATIM)
     # Interleaved, calibrated, load-aware rounds: see tools/perf/bench_check.py.
     add_custom_target(${target}_runs
@@ -309,7 +313,7 @@ function(sub0perf_add_benchmark target)
     foreach(analysis vtune-hotspots vtune-uarch advisor-roofline perf-record)
         string(REPLACE "-" "_" suffix "${analysis}")
         add_custom_target(${target}_${suffix}
-            COMMAND ${host_env} ${Python3_EXECUTABLE} "${profile}" ${analysis} --exe $<TARGET_FILE:${target}>
+            COMMAND ${host_env} ${Python3_EXECUTABLE} "${check}" timed-exec -- ${Python3_EXECUTABLE} "${profile}" ${analysis} --exe $<TARGET_FILE:${target}>
                     --filter "${SUB0PERF_PROFILE_FILTER}" --seconds ${SUB0PERF_PROFILE_SECONDS}
                     --out "${CMAKE_BINARY_DIR}/profiles"
             DEPENDS ${target} USES_TERMINAL VERBATIM)

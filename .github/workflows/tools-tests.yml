@@ -27,11 +27,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Sub0Platform (the tooling's process layer; the tag the build pins)
+      - name: Sub0Platform (the tooling's process layer; the revision the build pins)
         uses: actions/checkout@v4
         with:
           repository: CraigHutchinson/Sub0Platform
-          ref: v0.2.0
+          ref: 2823cf3e2cbd9f702dc2b7e988a58756e57c1ba9
           path: _sub0platform
       - uses: actions/setup-python@v5
         with:

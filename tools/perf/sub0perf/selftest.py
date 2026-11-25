@@ -24,7 +24,7 @@ import sys
 import types
 from pathlib import Path
 
-from . import accept, deferral, gate, hooks, levels, plan as planning, power, speed
+from . import accept, deferral, gate, hooks, levels, machine, plan as planning, power, speed
 from .common import read_json, tooling_script
 from .gitstate import git, git_head, perf_dir
 from .lock import PerfLock
@@ -307,12 +307,14 @@ def check_decisions(repo, config, d, budget):
 def check_speed_now(config):
     """The machine's speed against the baselines now (the real calibration kernel of each built target: 0.3 s, plus the sustained reading's warm load)."""
     targets = [(n, t["exe"], t["baseline"]) for n, t in (config or {}).get("targets", {}).items()]
-    saved = os.environ.pop(speed.FAKE_VAR, None)  # the real measurement, not a leftover fake
+    available = any(exe and Path(exe).is_file() for _, exe, _ in targets)
+    environ = {key: value for key, value in os.environ.items() if key not in (speed.FAKE_VAR, speed.FAKE_SUSTAINED_VAR)}
     try:
-        found = speed.check_targets(targets, config=config)
-    finally:
-        if saved is not None:
-            os.environ[speed.FAKE_VAR] = saved
+        held = machine.take("selftest calibration", no_wait=True) if available else contextlib.nullcontext()
+    except (machine.Busy, machine.Unavailable) as error:
+        return [(WARN, "speed now", str(error))]
+    with held:
+        found = speed.check_targets(targets, environ=environ, config=config)
     if found.ratio is None:
         return [(WARN, "speed now", "not compared (no built benchmark or no baseline calibration): " + "; ".join(found.notes or ["no target"]))]
     slow = found.ratio > found.limit

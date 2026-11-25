@@ -148,9 +148,14 @@ class GateDecisionTest(RepoTestCase):
         common.atomic_write_text(self.perf / "config.json", json.dumps({"targets": {"t": target}}))
         (self.repo / "base.json").write_text("{}", encoding="utf-8")
         self.push = f"refs/heads/main {self.head} refs/heads/main {'1' * 40}\n"
+        self.platformLease = gate.machine.platform_lease()
+        lease_path = mock.patch.object(self.platformLease, "defaultLockFile", return_value=self.repo / ".git" / "fixture.machine.lock")
+        lease_path.start()
+        self.addCleanup(lease_path.stop)
 
-    def gate(self, fake, run_gate=None, **env):
-        args = types.SimpleNamespace(repo=str(self.repo), refs_from_stdin=True, lock_timeout=1.0, level="quick", budget=None, rounds=3)
+    def gate(self, fake, run_gate=None, *, no_wait=False, output_format=None, **env):
+        args = types.SimpleNamespace(command="gate", repo=str(self.repo), refs_from_stdin=True, lock_timeout=1.0,
+                                     level="quick", budget=None, rounds=3, no_wait=no_wait, format=output_format)
         real = sys.stdin
         sys.stdin = io.StringIO(self.push)
         patches = [mock.patch.dict(os.environ, {power.FAKE_VAR: fake, **env}),
@@ -167,6 +172,55 @@ class GateDecisionTest(RepoTestCase):
 
     def events(self):
         return [json.loads(line)["event"] for line in (self.perf / "log.jsonl").read_text(encoding="utf-8").splitlines()]
+
+
+    def test_busy_push_defers_and_strict_push_refuses_before_calibration(self):
+        with self.platformLease.acquire("shared", "fixture", "serving requests") as holder, \
+             mock.patch.object(gate.speed, "check_targets", side_effect=AssertionError("must not calibrate")):
+            self.assertIsNotNone(holder)
+            code, text = self.gate("ac", no_wait=True, output_format="json", SUB0PERF_LEASE_STRICT="0")
+            self.assertEqual(code, 0)
+            data = json.loads(text.splitlines()[-1])
+            self.assertEqual((data["status"], data["exit"], data["counts"]), ("DEFERRED", 0, None))
+            self.assertEqual(data["blocked"]["reason"], "machine-lease")
+            self.assertTrue(data["blocked"]["deferred"])
+            self.assertEqual(data["blocked"]["holders"][0]["what"], "serving requests")
+            pending = deferral.load(self.perf)
+            self.assertEqual(len(pending), 1)
+            self.assertIn(self.head[:9], pending[0]["ranges"][0])
+            self.assertEqual(pending[0]["refs"], [{"ref": "refs/heads/main", "from": "1" * 40, "to": self.head}])
+            self.assertIn("serving requests", pending[0]["reason"])
+
+            code, text = self.gate("ac", no_wait=True, output_format="json", SUB0PERF_LEASE_STRICT="1")
+            self.assertEqual(code, 1, text)
+            data = json.loads(text.splitlines()[-1])
+            self.assertEqual((data["status"], data["blocked"]["deferred"]), ("BLOCKED", False))
+            self.assertEqual(deferral.load(self.perf), pending)
+
+    def test_recovery_calibrates_and_enters_repo_lock_under_the_machine_lease(self):
+        seen = []
+
+        def check_exclusive(stage):
+            def check(*args, **kw):
+                seen.append(stage)
+                self.assertIsNone(self.platformLease.acquire("shared", "fixture", "other task"))
+                return mock.DEFAULT
+            return check
+
+        with mock.patch.object(gate.speed, "check_targets", side_effect=check_exclusive("calibration"),
+                               return_value=types.SimpleNamespace(notes=[], ratio=None, limit=None, sustained=None)), \
+             mock.patch.object(gate, "PerfLock", side_effect=check_exclusive("repo lock"),
+                               return_value=contextlib.nullcontext()):
+            self.assertEqual(self.gate("ac", run_gate=mock.Mock(return_value=0), no_wait=True)[0], 0)
+        self.assertEqual(seen, ["calibration", "repo lock"])
+        with self.platformLease.acquire("shared", "fixture", "after gate") as later:
+            self.assertIsNotNone(later)
+
+    def test_documentation_only_bypasses_busy_machine(self):
+        with self.platformLease.acquire("shared", "fixture", "server"), \
+             mock.patch.object(gate, "documentation_only", return_value=True), \
+             mock.patch.object(gate.machine, "take", side_effect=AssertionError("documentation needs no lease")):
+            self.assertEqual(self.gate("ac", no_wait=True)[0], 0)
 
     def test_battery_defers_without_building_and_records_the_range(self):
         code, out = self.gate("battery")

@@ -84,10 +84,11 @@ still read; they lack calibration and spread, so judging falls back to the suite
 import argparse
 import contextlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 
-from . import levels, output, platform_proc, plan as planning, power, speed
+from . import levels, machine, output, platform_proc, plan as planning, power, speed
 from .accept import accept_command, baseline_command
 from .baseline import make_record, write_samples
 from .common import read_json
@@ -164,7 +165,7 @@ def auto_command(args):
         return 0
     set_round_guard(None if pol.override else power_guard)
     try:
-        with PerfLock(Path(args.repo), "auto", args.lock_timeout) if args.repo else contextlib.nullcontext():
+        with PerfLock(Path(args.repo), "auto", 0 if getattr(args, "no_wait", False) else args.lock_timeout) if args.repo else contextlib.nullcontext():
             return measure_and_judge(args)
     except LockTimeout as e:
         print(f"sub0perf: {e}")
@@ -234,7 +235,33 @@ def measure_and_judge(args):
     return 0 if args.report_only or not regressed else 1
 
 
+def timed_exec(argv):
+    """Run the raw JSON and profiler CMake targets under the same lease."""
+    parser = argparse.ArgumentParser(prog="bench_check.py timed-exec")
+    parser.add_argument("--no-wait", action="store_true")
+    parser.add_argument("argv", nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+    command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+    if not command:
+        parser.error("a command is required after --")
+    args.command = "timed-exec"
+    try:
+        held = machine.take(f"run {Path(command[0]).name}", no_wait=args.no_wait)
+    except machine.Busy as error:
+        return machine.report_blocked(args, error)
+    except machine.Unavailable as error:
+        return machine.report_unavailable(error)
+    with held:
+        try:
+            return subprocess.run(command, check=False).returncode
+        except OSError as error:
+            print(f"sub0perf: cannot run {command[0]} ({error})", file=sys.stderr)
+            return 1
+
+
 def main():
+    if sys.argv[1:2] == ["timed-exec"]:
+        return timed_exec(sys.argv[2:])
     # Keep the legacy benchmark parser/commands unchanged; workload evidence has its own
     # schema and budgets, reached through the same entry point used by all consumers.
     if sys.argv[1:2] == ["workload"]:
@@ -292,12 +319,13 @@ def main():
     parser.add_argument("--instr-tolerance", type=float, default=0.02, help="instructions per op change that counts")
     parser.add_argument("--max-cv", type=float, default=0.05, help="spread above which a benchmark is inconclusive")
     parser.add_argument("--absolute", action="store_true", help="no calibration or drift correction")
-    parser.add_argument("--report-only", action="store_true", help="never fail; report only")
+    parser.add_argument("--report-only", action="store_true", help="report regressions without failing")
     parser.add_argument("--reason", help="why a baseline is re-recorded or a change accepted (logged in the file)")
     parser.add_argument("--benchmark", nargs="+", default=[], help="accept: benchmarks to move to the new measurement")
     parser.add_argument("--all-changed", action="store_true", help="accept: every regressed or improved benchmark")
     parser.add_argument("--force-power", action="store_true",
                         help="baseline, accept: allow a record measured by hand on battery (never one measured under SUB0PERF_ON_BATTERY)")
+    parser.add_argument("--no-wait", action="store_true", help="fail immediately when the machine lease is held")
     parser.add_argument("--record", action="store_true", help="auto: keep a clean tree's measurement as its commit's record")
     parser.add_argument("--repo", help="git repository (auto --record, gate, install-hooks, selftest)")
     parser.add_argument("--target", help="benchmark target name (auto --record, install-hooks; selftest: check just this target)")
@@ -339,13 +367,29 @@ def main():
     out_json = output.resolve_out_json(args) if args.command in output.OUTCOME_COMMANDS else None
     output.begin_outcome_file(out_json)
     code = None
+
+    def invoke():
+        if args.command == "auto" and os.environ.get("SUB0PERF_SKIP"):
+            return 0  # an outer gate is already responsible for this build
+        timed = args.command in ("run", "auto", "compare") or (args.command == "power" and args.exe and args.baseline)
+        if not timed:
+            return commands[args.command](args)
+        try:
+            held = machine.take(args.command, no_wait=args.no_wait)
+        except machine.Busy as error:
+            return machine.report_blocked(args, error)
+        except machine.Unavailable as error:
+            return machine.report_unavailable(error)
+        with held:
+            return commands[args.command](args)
+
     try:
         if args.command in ("auto", "gate"):  # long runs: chatter goes to a log in brief and json (output.Quiet)
             with output.Quiet(args.format, output.quiet_log_path(args)) as quiet:
-                quiet.exit_code = commands[args.command](args)
+                quiet.exit_code = invoke()
                 code = quiet.exit_code
             return code
-        code = commands[args.command](args)
+        code = invoke()
         return code
     finally:
         if out_json:
