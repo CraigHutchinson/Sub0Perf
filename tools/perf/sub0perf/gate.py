@@ -243,6 +243,22 @@ def preview_targets(args, repo, d, config, head):
     return previews
 
 
+STALE_MIN_IMPROVED = 3  # rows that got faster against a baseline that also has regressions: it was recorded from a different build
+
+
+def stale_baseline_hint(rows, have_record, record_regressed, ref_sha):
+    """One paragraph when the committed baseline looks out of date for this build, else ''. The signal: several rows IMPROVED against it
+    while others REGRESSED (a code-layout or source change moves rows both ways; a slow machine only moves them one way), and the
+    like-for-like comparison with the previous commit's record on this host shows none of the regressions. It never changes the verdict."""
+    improved = [r[0] for r in rows if r[5] == "IMPROVED"]
+    if not have_record or record_regressed or len(improved) < STALE_MIN_IMPROVED:
+        return ""
+    return (f"  The baseline looks out of date for this build: {len(improved)} row(s) improved against it while others regressed, "
+            f"and none regressed against the record of {ref_sha[:9]} on this host. Check that the machine is normal "
+            f"(`bench_check.py selftest`; the controls and calibration), then re-record deliberately with `_baseline --reason`, "
+            f"or accept the rows above with a reason.")
+
+
 def target_problem(repo, target):
     """Why this configured target cannot be measured from `repo`, with the fix, or None. The hooks are shared by every worktree of
     the repository, but a build directory belongs to one."""
@@ -368,6 +384,9 @@ def run_gate(args, repo, d, config_path, head, clean):
             print("  Fix them, or accept them explicitly and commit the baseline:")
             print(f'    python "{tooling_script()}" accept --results "{d / "records" / target / (head + ".json")}"'
                   f' --baseline "{t["baseline"]}" --all-changed --reason "why this is acceptable"')
+            hint = stale_baseline_hint(rows, bool(ref), bool(unaccepted), ref_sha)
+            if hint:
+                print(hint)
         if unreproduced:
             print(f"\nsub0perf: WARNING: {len(unreproduced)} difference(s) from the record of {ref_sha[:9]} were not reproduced in "
                   f"this session, so they do not block the push: {', '.join(sorted(unreproduced))}")

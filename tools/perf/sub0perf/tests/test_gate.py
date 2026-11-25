@@ -74,3 +74,21 @@ class GateRefusalTest(RepoTestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(self.gate(""), 0)  # git runs the hook with no refs when everything is up to date
         self.assertIn("nothing is pushed", out.getvalue())
+
+
+class StaleBaselineHintTest(unittest.TestCase):
+    """Rows moving both ways against the baseline, but not against the previous commit's record, say the baseline is out of date."""
+
+    def rows(self, improved):
+        return [("r%d" % i, 0, 0, 0, 0, "IMPROVED") for i in range(improved)] + [("slow", 0, 0, 0, 0, "REGRESSED")]
+
+    def test_improvements_beside_regressions_with_a_clean_record_hint_at_a_stale_baseline(self):
+        text = gate.stale_baseline_hint(self.rows(3), True, False, "abcdef0123456")
+        self.assertIn("out of date", text)
+        self.assertIn("abcdef012", text)
+        self.assertIn("3 row(s) improved", text)
+
+    def test_no_hint_without_a_record_with_a_regression_against_it_or_with_few_improvements(self):
+        self.assertEqual(gate.stale_baseline_hint(self.rows(3), False, False, "abc"), "")
+        self.assertEqual(gate.stale_baseline_hint(self.rows(3), True, True, "abc"), "")  # this push regressed against the record
+        self.assertEqual(gate.stale_baseline_hint(self.rows(2), True, False, "abc"), "")
