@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: CraigHutchinson/Sub0Platform
-          ref: 2823cf3e2cbd9f702dc2b7e988a58756e57c1ba9
+          ref: cbbf0eb43d49f7ce667fa70731366e6368ca3978
           path: _sub0platform
       - uses: actions/setup-python@v5
         with:

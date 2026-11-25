@@ -212,6 +212,13 @@ range (the selftest injects a docs-only list and a code list). The benchmark nam
 coverage state, since listing them would run the benchmark executable. `choose_benchmarks` and the preview share
 `make_quick_plan`, so the plan is the one a real quick gate makes.
 
+### Physical CPU topology
+
+Run `python tools/perf/bench_check.py topology` to see which allowed logical CPUs share each physical core.
+Use `--format json` to get the same sibling groups and any OS-supplied performance classes as structured data.
+Compare classes within the same snapshot when all are known. A higher class indicates higher performance.
+Unavailable topology is reported explicitly. The command reads host facts without starting a benchmark.
+
 ### Power state
 
 Timing on battery is not a fair comparison with a baseline recorded on mains: CPU clocks, boost and the power plan all

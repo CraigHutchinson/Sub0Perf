@@ -28,6 +28,8 @@ Update Sub0Canvas first. Re-run metrics `accept` on the recording toolchain to w
 
 ### Parallel benchmark rows
 
+See the [topology review](reviews/2026-11-25-cpu-topology.md) for the affinity contract and the order of delivery.
+
 1. Run smoke and deterministic metrics before timing. Report failed rows and exclude them from timing. This shipped in [PR 17](https://github.com/CraigHutchinson/Sub0Perf/pull/17).
 2. Default to serial. The benchmark author opts each row in and sets an executable-wide ceiling via `sub0perf_add_benchmark(PARALLEL ...)` when the feature is implemented. Keep rows that use threads, large shared state, GPU, files or network serial.
 3. Use Platform topology to separate performance and efficiency cores and keep SMT siblings apart. Calibrate each eligible row alone and alongside pinned copies. Accept the largest width whose median shift stays below one third of the gate tolerance and whose spread does not widen. Key the host profile by host, power state and toolchain. Fall back to serial on a key mismatch.
