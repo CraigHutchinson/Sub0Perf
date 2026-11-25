@@ -16,6 +16,7 @@ from .lock import LockTimeout, PerfLock
 from .pins import pin_problems, show_file_at
 from .report import render, report
 from .reproduce import reproduced_against
+from . import runner
 from .runner import (PowerChanged, list_names, measure_all, probe_cost, probe_unknown, process_cap_for, rerunner, set_process_cap,
                      set_round_guard)
 from .stats import rounds_needed
@@ -361,7 +362,7 @@ def run_gate(args, repo, d, config_path, head, clean):
             unaccepted, unreproduced = reproduce_vs_record(repo, target, exe, ref_sha, unaccepted, args)
         if regressed_base or unaccepted:
             blocked.append(target)
-            names_text = ", ".join(sorted(set(unaccepted) | {r[0] for r in rows if r[5] == "REGRESSED"}
+            names_text = ", ".join(sorted(set(unaccepted) | set(runner.SMOKE_FAILED) | {r[0] for r in rows if r[5] == "REGRESSED"}
                                          | {p[0] for p in pair_rows if p[4] == "REGRESSED"}))
             print(f"\nsub0perf: push blocked by regressions in {target}: {names_text}")
             print("  Fix them, or accept them explicitly and commit the baseline:")

@@ -64,6 +64,8 @@ def steady_calibration(read):
 
 
 TIMED_OUT = {}  # benchmark name -> the wall-clock cap (seconds) its process hit; filled by run_rounds, read by the outcome
+SMOKE_FAILED = {}  # benchmark name -> why its --smoke run failed; such a row is reported and never timed (correctness before timing)
+_smoke_checked = set()  # rows whose smoke run passed in this command, so reruns and extra rounds do not repeat it
 _process_cap = None  # callable(name) -> seconds or None: the hard wall-clock cap of one benchmark process. Set once per command.
 
 
@@ -72,6 +74,31 @@ def set_process_cap(cap):
     global _process_cap
     _process_cap = cap
     TIMED_OUT.clear()
+    SMOKE_FAILED.clear()
+    _smoke_checked.clear()
+
+
+def smoke_check(exe, names, cap_of=None):
+    """Runs each row once with --smoke (its setup, its workload, the metrics it registers; exit status only) and returns the names
+    that passed. A row that fails, or runs past its cap, goes to SMOKE_FAILED and is not timed in this command."""
+    passed = []
+    for n in names:
+        if n in SMOKE_FAILED:
+            continue
+        if n not in _smoke_checked:
+            cap = cap_of(n) if cap_of else None
+            try:
+                done = subprocess.run([exe, "--exact", n, "--smoke"], capture_output=True, text=True, timeout=cap)
+                reason = None if done.returncode == 0 else ((done.stderr or done.stdout).strip().splitlines() or [f"exit {done.returncode}"])[-1]
+            except subprocess.TimeoutExpired:
+                reason = f"the smoke run ran past {cap:.0f} s"
+            if reason is not None:
+                SMOKE_FAILED[n] = reason
+                print(f"sub0perf: SMOKE FAILED {n}: {reason}; it is not timed", file=sys.stderr, flush=True)
+                continue
+            _smoke_checked.add(n)
+        passed.append(n)
+    return passed
 
 
 def process_cap_for(budget, recorded_cost=None):
@@ -122,6 +149,7 @@ def run_rounds(exe, names, rounds, epochs, max_load, settle, seed, first_round=0
     positions = positions if positions is not None else {n: [] for n in names}
     meta = meta if meta is not None else []
     extra = ["--epochs", str(epochs)] if epochs else []
+    names = smoke_check(exe, names, _process_cap)  # correctness before timing: a row that fails its smoke run is never timed
     groups = {}
     for n in names:
         groups.setdefault(group_of(n), []).append(n)
@@ -166,7 +194,7 @@ def run_rounds(exe, names, rounds, epochs, max_load, settle, seed, first_round=0
                          "calibration_start_ns": cal_start, "calibration_end_ns": cal_end})
             print(f"sub0perf: {progress.line(r, sum(len(m) for m in groups.values()))}; load {load:.0%}{'' if quiet else ' (busy)'}, "
                   f"calibration {cal_start:,.0f}/{cal_end:,.0f} ns", file=sys.stderr, flush=True)
-    for n in TIMED_OUT:  # a row with a time-out has no verdict; the outcome lists it as TIMEOUT
+    for n in [*TIMED_OUT, *SMOKE_FAILED]:  # a row with a time-out or a failed smoke run has no verdict; the outcome lists it
         samples.pop(n, None)
         positions.pop(n, None)
         counters.pop(n, None)
