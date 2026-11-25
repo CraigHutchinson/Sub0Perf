@@ -117,7 +117,7 @@ def compare_command(args, measure=side_by_side, listing=list_names, probe=probe_
         text = (f"**Compare:** {exe.name} against {described}; {rounds} alternating rounds, {len(names)} benchmark(s). "
                 f"REGRESSED means the new build is slower.\n\n" + render(rows, pair_rows, env, described, args.tolerance, args.pair_tolerance))
         counts = output.counts_of(rows, pair_rows, env)
-        code = 0 if args.report_only or not counts["regressed"] else 1
+        code = 0 if args.report_only or not (counts["regressed"] or counts["smoke_failed"]) else 1
         output.emit_text(fmt, "compare", counts, output.changed_rows(rows, pair_rows, env, args), text, output.report_path(args), args, code,
                          label="perf compare")
         return code

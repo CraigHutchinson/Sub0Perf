@@ -151,6 +151,9 @@ def changed_rows(rows, pair_rows, env, args, verdicts=("REGRESSED", "IMPROVED"))
                 tol = args.instr_tolerance if key == "instructions" else args.tolerance
                 out.append({"name": f"{row['name']} [{key}]", "kind": "counter", "verdict": verdict, "change": change,
                             "noise": 0.0, "tolerance": tol})
+    for name, reason in runner.SMOKE_FAILED.items():  # blocks: a row that fails its own correctness check says nothing about speed
+        out.append({"name": name, "kind": "benchmark", "verdict": "SMOKE_FAILED", "change": None, "noise": 0.0, "tolerance": 0.0,
+                    "reason": reason, "next_action": f'run the executable with --exact "{name}" --smoke and fix what it reports'})
     for name, cap in runner.TIMED_OUT.items():  # never blocks; listed so nothing disappears silently
         out.append({"name": name, "kind": "benchmark", "verdict": "TIMEOUT", "change": None, "noise": 0.0, "tolerance": 0.0,
                     "limit_s": cap, "next_action": f'{_script()} compare --exe <exe> --filter "{name}" --budget <seconds>'})
@@ -161,10 +164,13 @@ def counts_of(rows, pair_rows, env):
     return {"regressed": len(verdict_hits(rows, pair_rows, env, ["REGRESSED"])),
             "improved": len(verdict_hits(rows, pair_rows, env, ["IMPROVED"])),
             "ok": sum(1 for r in rows if r[5] == "ok"),
-            "inconclusive": len(verdict_hits(rows, pair_rows, env, ["NOISY", "ENVIRONMENT"]))}
+            "inconclusive": len(verdict_hits(rows, pair_rows, env, ["NOISY", "ENVIRONMENT"])),
+            "smoke_failed": len(runner.SMOKE_FAILED)}
 
 
 def brief_line(entry):
+    if entry["verdict"] == "SMOKE_FAILED":
+        return f"SMOKE_FAILED {entry['name']}: {entry['reason']}; {entry['next_action']}"
     change = "n/a" if entry["change"] is None else f"{entry['change']:+.1%}"
     if entry["verdict"] == "TIMEOUT":
         return f"TIMEOUT {entry['name']}: killed after {entry['limit_s']:.0f} s; {entry['next_action']}"
@@ -203,7 +209,7 @@ def outcome(command, status, exit_code, counts, changed, report, action, **extra
 
 
 def status_of(counts):
-    return "FAIL" if counts["regressed"] else "PASS"
+    return "FAIL" if counts["regressed"] or counts.get("smoke_failed") else "PASS"
 
 
 def write_report(path, text):

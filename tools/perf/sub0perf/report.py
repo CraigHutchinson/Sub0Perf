@@ -102,8 +102,8 @@ def report(record, args):
             f.write("### " + str(record.get("exe", "Benchmarks")) + " against " + Path(args.baseline).name + "\n\n" + text + "\n\n")
     fmt = output.resolve_format(args)
     counts = output.counts_of(rows, pair_rows, env)
-    exit_code = 0 if args.report_only or not counts["regressed"] else 1
+    exit_code = 0 if args.report_only or not (counts["regressed"] or counts["smoke_failed"]) else 1
     output.emit_text(fmt, getattr(args, "command", None) or "check", counts, output.changed_rows(rows, pair_rows, env, args), text,
                      output.report_path(args, Path(args.baseline).stem if not getattr(args, "exe", None) else None), args, exit_code,
                      results=getattr(args, "results", None) or getattr(args, "out", None))
-    return rows, pair_rows, counts["regressed"]
+    return rows, pair_rows, counts["regressed"] + counts["smoke_failed"]  # a failed smoke run blocks like a regression

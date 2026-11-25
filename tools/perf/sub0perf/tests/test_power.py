@@ -258,6 +258,7 @@ class RoundGuardTest(unittest.TestCase):
         with mock.patch.object(runner, "wait_for_quiet", lambda *a: (0.0, 0.0, True)), \
              mock.patch.object(runner, "measure", lambda *a: {common.CALIBRATION: 1.0}), \
              mock.patch.object(runner, "measure_full", lambda *a: measured.append(1) or {"B": (1.0, {})}), \
+             mock.patch.object(runner, "smoke_check", lambda exe, names, cap=None: list(names)), \
              mock.patch.object(power, "power_state", lambda *a: next(states)):
             runner.set_round_guard(gate.power_guard)
             try:
