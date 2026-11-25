@@ -86,29 +86,35 @@ if(NOT DEFINED SUB0PERF_PINS AND DEFINED SUB0MATH_PERF_PINS)
 endif()
 # The compare and accept targets declare their settings in sub0perf_add_benchmark, through the same macro.
 
-# Sub0Platform's Python package (processes: launch, alive, terminate): fetched with CPM at a pinned release tag, download only. The tooling
-# stays standard-library only (nothing is pip-installed): the python/ directory reaches it through SUB0PERF_PLATFORM_DIR (the CMake targets
-# set it) and `.git/sub0perf/config.json` (install-hooks records it, so a git hook finds it); platform_path.py puts it on sys.path.
-# Locally, CPM's own override uses a checkout instead of the tag: set the environment variable CPM_Sub0Platform_SOURCE (or the cache
-# variable) to its directory. A copy that lacks proc.launch (older than 0.2.0) stops the configure.
+# Sub0Platform's Python package (processes: launch, alive, terminate): fetched with CPM at a pinned release tag, download only, under its
+# own package name (Sub0PerfPlatform) so it never collides with a consumer's own Sub0Platform (another pin, SOURCE_SUBDIR cpp, another
+# add order). The tooling stays standard-library only (nothing is pip-installed): the python/ directory reaches it through
+# SUB0PERF_PLATFORM_DIR (the CMake targets set it) and `.git/sub0perf/config.json` (install-hooks records it, so a git hook finds it).
+# Locally, set the environment variable CPM_Sub0Platform_SOURCE (or the cache variable) to a Sub0Platform checkout's root to use it
+# instead of the tag; a copy that lacks proc.launch (older than 0.2.0) stops the configure.
 set(SUB0PERF_PLATFORM_TAG "v0.2.0" CACHE STRING "Sub0Platform release tag whose Python package the tooling uses")
 if(NOT COMMAND CPMAddPackage)
     include("${CMAKE_CURRENT_LIST_DIR}/get_cpm.cmake")
 endif()
-if(NOT DEFINED Sub0Platform_SOURCE_DIR)
-    CPMAddPackage(NAME Sub0Platform
-        GITHUB_REPOSITORY CraigHutchinson/Sub0Platform
-        GIT_TAG ${SUB0PERF_PLATFORM_TAG}
-        DOWNLOAD_ONLY YES)
+if(NOT DEFINED CPM_Sub0PerfPlatform_SOURCE AND NOT DEFINED ENV{CPM_Sub0PerfPlatform_SOURCE})
+    if(DEFINED CPM_Sub0Platform_SOURCE)
+        set(CPM_Sub0PerfPlatform_SOURCE "${CPM_Sub0Platform_SOURCE}")
+    elseif(DEFINED ENV{CPM_Sub0Platform_SOURCE})
+        set(CPM_Sub0PerfPlatform_SOURCE "$ENV{CPM_Sub0Platform_SOURCE}")
+    endif()
 endif()
-set(SUB0PERF_PLATFORM_PYTHON "${Sub0Platform_SOURCE_DIR}/python")
+CPMAddPackage(NAME Sub0PerfPlatform
+    GITHUB_REPOSITORY CraigHutchinson/Sub0Platform
+    GIT_TAG ${SUB0PERF_PLATFORM_TAG}
+    DOWNLOAD_ONLY YES)
+set(SUB0PERF_PLATFORM_PYTHON "${Sub0PerfPlatform_SOURCE_DIR}/python")
 if(EXISTS "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py")
     file(READ "${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py" _sub0perf_proc)
 endif()
 string(FIND "${_sub0perf_proc}" "def launch(" _sub0perf_has_launch)
 if(_sub0perf_has_launch EQUAL -1)
     message(FATAL_ERROR "sub0perf: ${SUB0PERF_PLATFORM_PYTHON}/sub0platform/proc.py has no launch(): Sub0Platform is older than 0.2.0 "
-                        "(a CPM_Sub0Platform_SOURCE override or a Sub0Platform_SOURCE_DIR set by the consumer); use a newer checkout or the tag ${SUB0PERF_PLATFORM_TAG}")
+                        "(a CPM_Sub0Platform_SOURCE override); use a newer checkout or the tag ${SUB0PERF_PLATFORM_TAG}")
 endif()
 
 # Where the scripts are, for shells and CI: `python "$(cat build/sub0perf_tooling_dir.txt)/profile.py" ...`.
