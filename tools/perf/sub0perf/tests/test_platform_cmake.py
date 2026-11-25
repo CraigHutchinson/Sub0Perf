@@ -49,7 +49,7 @@ class PlatformCopyTest(unittest.TestCase):
         if "get_cpm" in done.stderr + done.stdout:
             self.skipTest("CPM could not be fetched")
         self.assertNotEqual(done.returncode, 0)
-        self.assertIn("has no launch()", done.stderr)
+        self.assertIn("has no launch()", " ".join(done.stderr.split()))  # CMake wraps its messages
 
 
 if __name__ == "__main__":
