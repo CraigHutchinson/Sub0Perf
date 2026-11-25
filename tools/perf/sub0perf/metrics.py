@@ -15,7 +15,12 @@ The executable (`BenchRunner::metric`, `--metrics-only`) writes `{"metrics":[{"n
   xfail  a reason: the metric is expected to fail. XFAIL (still failing) does not block; XPASS (it passes) does, so the
          marker gets removed: a metric does not stay "expected to fail" after it was fixed.
 
-Statuses: ok, FAIL, XFAIL, XPASS, MISSING (in the spec, not reported: blocks), NEW (reported, not in the spec: listed,
+Standard library: the executable also reports `"stdlib"` (libstdc++, libc++, MSVC STL) and a spec records the one its values were
+accepted on (`"stdlib"`, set by `accept`). A run under another standard library judges nothing: every row is SKIP (other
+standard library) with its value shown, and it never fails, because `sizeof` of a standard type differs between them. A spec
+without `stdlib`, or results without it (an older executable), are judged as before.
+
+Statuses: ok, FAIL, XFAIL, XPASS, MISSING (in the spec, not reported: blocks), SKIP (other standard library), NEW (reported, not in the spec: listed,
 does not block). `metrics` exits 1 on FAIL, XPASS or MISSING, 2 on unreadable input. Nothing here depends on time or the
 machine, so there is no noise, no calibration and no power policy.
 
@@ -59,6 +64,23 @@ def load_results(path):
             raise MetricsError(f"{path}: metric {m['name']!r} has kind {kind!r}, expected exact or max")
         out[m["name"]] = {"value": value, "unit": m.get("unit", ""), "kind": kind}
     return out
+
+
+def results_stdlib(path):
+    """The standard library the results were measured under, or "" when they do not say."""
+    data = read_json(path)
+    value = data.get("stdlib") if isinstance(data, dict) else None
+    return value if isinstance(value, str) else ""
+
+
+def judge_for(results, spec, stdlib=""):
+    """`judge`, except that results from another standard library than the spec's are all SKIP (never blocking)."""
+    rows = judge(results, spec)
+    accepted = spec.get("stdlib")
+    if not (isinstance(accepted, str) and accepted and stdlib and accepted != stdlib):
+        return rows
+    note = f"not judged: the spec was accepted on {accepted}, this run is {stdlib}"
+    return [(name, "SKIP", f"{detail}; {note}") for name, _, detail in rows]
 
 
 def results_file(args):
@@ -132,7 +154,7 @@ def judge(results, spec):
 
 
 def counts_of(rows):
-    keys = {"FAIL": "failed", "XPASS": "xpass", "MISSING": "missing", "XFAIL": "xfail", "NEW": "new", "ok": "ok"}
+    keys = {"FAIL": "failed", "XPASS": "xpass", "MISSING": "missing", "XFAIL": "xfail", "NEW": "new", "ok": "ok", "SKIP": "skipped"}
     counts = {v: 0 for v in keys.values()}
     for _, status, _ in rows:
         counts[keys[status]] += 1
@@ -143,6 +165,8 @@ def brief_summary(counts):
     parts = [f"{counts['failed'] + counts['xpass'] + counts['missing']} failed", f"{counts['xfail']} xfail", f"{counts['ok']} ok"]
     if counts["new"]:
         parts.append(f"{counts['new']} new")
+    if counts["skipped"]:
+        parts.append(f"{counts['skipped']} skipped (other standard library)")
     return ", ".join(parts)
 
 
@@ -156,18 +180,18 @@ def metrics_command(args):
     fmt = output.resolve_format(args)
     try:
         args.results = results_file(args)
-        results, spec = load_results(args.results), load_spec(args.spec)
+        results, spec, stdlib = load_results(args.results), load_spec(args.spec), results_stdlib(args.results)
     except (OSError, ValueError) as error:  # unreadable or malformed input is not a verdict
         print(f"sub0perf: metrics: {error}")
         return 2
-    rows = judge(results, spec)
+    rows = judge_for(results, spec, stdlib)
     counts = counts_of(rows)
     blocked = [r for r in rows if r[1] in BLOCKING]
     code = 0 if args.report_only or not blocked else 1
     text = markdown(rows, args.spec, args.results)
     path = Path(args.report) if getattr(args, "report", None) else Path(args.results).with_name(Path(args.results).stem + ".report.md")
     status = "FAIL" if blocked else "PASS"
-    shown = [r for r in rows if r[1] not in ("ok", "XFAIL")]
+    shown = [r for r in rows if r[1] not in ("ok", "XFAIL")]  # SKIP rows stay: the values are what the reader wants
     action = ""
     if blocked or counts["new"]:
         action = (f"fix the code; if the new value is intended: python <tooling>/bench_check.py accept --results {args.results} "
@@ -213,9 +237,14 @@ def accept_metrics_command(args):
     """
     try:
         args.results = results_file(args)
-        results, spec = load_results(args.results), load_spec(args.spec)
+        results, spec, stdlib = load_results(args.results), load_spec(args.spec), results_stdlib(args.results)
     except (OSError, ValueError) as error:
         print(f"bench_check: {error}")
+        return 2
+    recorded = spec.get("stdlib") if isinstance(spec.get("stdlib"), str) else ""
+    if recorded and stdlib and recorded != stdlib:
+        print(f"bench_check: {args.spec} records values accepted on {recorded}, these results are from {stdlib}; "
+              f"accept on {recorded}, or remove \"stdlib\" from the spec on purpose to re-baseline it for {stdlib}")
         return 2
     names, skipped = _named(args, results, spec)
     if not names:
@@ -243,6 +272,11 @@ def accept_metrics_command(args):
         spec["metrics"][name] = entry
         if doc is not None:
             _patch_metric(doc, name, old, entry, key, unit_added, measured)
+    new_stdlib = bool(stdlib) and not recorded
+    if new_stdlib:
+        spec["stdlib"] = stdlib
+        if doc is not None:
+            doc.add([], "stdlib", stdlib)
     log = {"date": time.strftime("%Y-%m-%d"), "commit": git_head(Path(args.spec).resolve().parent) or "",
            "reason": args.reason, "metrics": changes}
     had_accepted = isinstance(spec.get("accepted"), list)
