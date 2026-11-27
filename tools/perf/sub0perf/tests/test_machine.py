@@ -52,6 +52,32 @@ class MachinePolicyTest(unittest.TestCase):
                     self.assertEqual(data["blocked"]["holders"][0]["tool"], "fixture")
                     self.assertEqual(data, json.loads(outcome_file.read_text(encoding="utf-8")))
 
+    def test_status_reads_real_records_without_requesting_another_lease(self):
+        argv = ["bench_check.py", "lease-status", "--format", "json"]
+        with self.lease.acquire("shared", "fixture", "serve", gpu="fixture GPU"):
+            with mock.patch.object(self.lease, "acquire", side_effect=AssertionError("status must only read")), \
+                 mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as stdout:
+                self.assertEqual(cli.main(), 0)
+            status = json.loads(stdout.getvalue())
+            self.assertEqual(status["schema"], "sub0perf-lease-status-1")
+            self.assertTrue(status["advisory"])
+            [owner] = status["reported_owners"]
+            self.assertEqual((owner["tool"], owner["what"], owner["mode"], owner["gpu"]),
+                             ("fixture", "serve", "shared", "fixture GPU"))
+
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(cli.main(), 0)
+        self.assertEqual(json.loads(stdout.getvalue())["reported_owners"], [])
+
+    def test_status_error_is_not_an_empty_snapshot(self):
+        argv = ["bench_check.py", "lease-status", "--format", "json"]
+        with mock.patch.object(self.lease, "readOwners", side_effect=OSError("state unavailable")), \
+             mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as stdout, \
+             contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(cli.main(), 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("state unavailable", stderr.getvalue())
+
     def test_late_deferral_survives_clearing_the_ranges_a_gate_covered(self):
         deferral.add(self.root, "a" * 40, [], "first")
         covered = deferral.load(self.root)
