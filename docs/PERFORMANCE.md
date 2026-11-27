@@ -212,6 +212,16 @@ range (the selftest injects a docs-only list and a code list). The benchmark nam
 coverage state, since listing them would run the benchmark executable. `choose_benchmarks` and the preview share
 `make_quick_plan`, so the plan is the one a real quick gate makes.
 
+### Machine lease status
+
+Run `python tools/perf/bench_check.py lease-status` to see the machine lease owner records visible to this user.
+`--format json` emits `sub0perf-lease-status-1` with `advisory: true` and `reported_owners`. Each record carries
+the PID, start time, tool, purpose, mode, and any declared resource details.
+
+The snapshot may include a waiting exclusive requester during a hand-off. It can also be empty during a race
+between acquisition and owner publication. Admission is determined when requesting the OS lease. The status
+command does not acquire a lease, start a process, or run a benchmark.
+
 ### Physical CPU topology
 
 Run `python tools/perf/bench_check.py topology` to see which allowed logical CPUs share each physical core.

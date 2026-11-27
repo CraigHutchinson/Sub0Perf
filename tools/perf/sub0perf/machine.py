@@ -9,6 +9,7 @@ from . import output
 INTERACTIVE_WAIT = 15 * 60
 PUSH_WAIT = 120
 NEXT_ACTION = "Rerun after the machine lease is released."
+LEASE_STATUS_SCHEMA = "sub0perf-lease-status-1"
 
 
 class Busy(Exception):
@@ -61,6 +62,25 @@ def take(what, *, no_wait=False, pre_push=False):
     except OSError as error:
         raise Unavailable(f"cannot use the machine lease ({error})") from error
     raise Busy(owners, wait)
+
+
+def status_command(args):
+    """Show the Platform owner records without requesting or changing the lease."""
+    try:
+        owners = platform_lease().readOwners()
+    except (Unavailable, OSError) as error:
+        return report_unavailable(error)
+
+    if output.resolve_format(args) == "json":
+        print(json.dumps({"schema": LEASE_STATUS_SCHEMA, "advisory": True,
+                          "reported_owners": [asdict(owner) for owner in owners]}))
+    elif owners:
+        print("sub0perf: machine lease owner records (advisory):")
+        for owner in owners:
+            print(f"  {owner.describe()}")
+    else:
+        print("sub0perf: no machine lease owners reported. Availability is determined when a lease is requested.")
+    return 0
 
 
 def report_blocked(args, error, *, deferred=False):
